@@ -81,9 +81,9 @@ Stress test tx: https://www.oklink.com/xlayer/tx/0xb68f74a94810d7eeee795d3c365ec
 
 ## Required External Links
 
-Repository URL: `TODO`
+Repository URL: `https://github.com/azen07508-debug/xguard-hook`
 
-Public frontend URL: `TODO`
+Public frontend URL: `https://xguard-hook.vercel.app/`
 
 Demo video URL: `TODO`
 

@@ -95,9 +95,9 @@ Recorded demo path:
 
 ## Final Links To Fill
 
-Repository URL: `TODO`
+Repository URL: `https://github.com/azen07508-debug/xguard-hook`
 
-Public frontend URL: `TODO`
+Public frontend URL: `https://xguard-hook.vercel.app/`
 
 Demo video URL: `TODO`
 
