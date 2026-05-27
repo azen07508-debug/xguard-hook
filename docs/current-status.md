@@ -72,7 +72,7 @@ Verified results:
 - Frontend production build: completed successfully.
 - Project build path `forge build && npm run web:build`: completed successfully.
 - Submission file check: completed successfully before and after deployment.
-- Final readiness check exists as `npm run submission:ready`; it is expected to fail until repository, frontend, demo video, project X/Twitter, and launch post URLs are filled in `docs/final-submission-package.md`.
+- Final readiness check exists as `npm run submission:ready`; it is expected to fail until demo video, project X/Twitter, and launch post URLs are filled in `docs/final-submission-package.md`.
 - Hook address mining dry-run: completed successfully.
 - X Layer RPC preflight: chain id `196`, PoolManager and StateView bytecode present.
 - X Layer deployment verifier: runtime bytecode present for PoolManager, StateView, HookDeployer, Hook, DemoRouter, XGM, and gUSD; onchain risk state read successfully.
@@ -80,17 +80,17 @@ Verified results:
 - Final submission package: `docs/final-submission-package.md`.
 - Publication runbook for repo/frontend/video/social links: `docs/publication-runbook.md`.
 - Public repository: `https://github.com/azen07508-debug/xguard-hook`.
+- Public frontend: `https://xguard-hook.vercel.app/`.
 - Frontend deployment target: Vercel using `vercel.json`.
 - CI is prepared in `.github/workflows/ci.yml`.
 - Optional GitHub Pages deployment is prepared in `.github/workflows/pages.yml`.
 
 ## Remaining Submission Work
 
-- Public frontend URL.
 - Demo video URL.
 - Project X/Twitter account URL.
 - X/Twitter launch post URL tagging `@XLayerOfficial`, `@Uniswap`, and `@flapdotsh`.
-- Final update of `docs/final-submission-package.md` and `docs/google-form-answers.md` after all five external links are available.
+- Final update of `docs/final-submission-package.md` and `docs/google-form-answers.md` after the three remaining external links are available.
 
 Current publication status:
 
