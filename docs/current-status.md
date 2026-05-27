@@ -79,7 +79,7 @@ Verified results:
 - Onchain demo runner: faucet, approve, normal swap, large swap, stress test, and blocked-swap custom error path completed.
 - Final submission package: `docs/final-submission-package.md`.
 - Publication runbook for repo/frontend/video/social links: `docs/publication-runbook.md`.
-- Public repository target: GitHub repo named `xguard-hook`.
+- Public repository: `https://github.com/azen07508-debug/xguard-hook`.
 - Frontend deployment target: Vercel using `vercel.json`.
 - CI is prepared in `.github/workflows/ci.yml`.
 - Optional GitHub Pages deployment is prepared in `.github/workflows/pages.yml`.
@@ -87,16 +87,16 @@ Verified results:
 ## Remaining Submission Work
 
 - Public frontend URL.
-- Public repository URL.
 - Demo video URL.
 - Project X/Twitter account URL.
 - X/Twitter launch post URL tagging `@XLayerOfficial`, `@Uniswap`, and `@flapdotsh`.
+- Final update of `docs/final-submission-package.md` and `docs/google-form-answers.md` after all five external links are available.
 
 Current publication status:
 
-- Local commit exists on `main`: `7b08afb feat: build xguard hook hackathon MVP`.
-- Public GitHub repository was created manually: `https://github.com/azen07508-debug/xguard-hook.git`.
-- Next action is to set `origin` to that repository and push `main`.
+- `origin` points to `https://github.com/azen07508-debug/xguard-hook.git`.
+- Local `main` tracks `origin/main`.
+- GitHub metadata verifies the repo is public and the default branch is `main`.
 
 ## Mainnet Deployment Gate
 
