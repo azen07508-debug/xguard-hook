@@ -12,6 +12,7 @@ import {
 import type { Address, Hex } from 'viem';
 import { formatUnits, maxUint256, parseUnits } from 'viem';
 import {
+  type Connector,
   useAccount,
   useConnect,
   useDisconnect,
@@ -200,22 +201,40 @@ export function App() {
 
   async function connectWallet() {
     setWalletError(null);
-    const connector = connectors[0];
-    if (!connector) {
+    const orderedConnectors = getPreferredConnectors(connectors);
+    if (orderedConnectors.length === 0) {
       const message = 'No injected wallet detected. Install or enable OKX Wallet / MetaMask, then refresh.';
       setWalletError(message);
       setTxStatus('Wallet connection failed');
       return;
     }
-    try {
-      setTxStatus('Opening wallet connection...');
-      await connectAsync({ connector, chainId: xLayer.id });
-      setWalletError(null);
-      setTxStatus('Wallet connected');
-    } catch (error) {
-      setWalletError(formatWalletConnectError(error));
-      setTxStatus('Wallet connection failed');
+    let lastError: unknown;
+    for (const connector of orderedConnectors) {
+      try {
+        setTxStatus(`Opening ${connector.name} connection...`);
+        await connectAsync({ connector, chainId: xLayer.id });
+        setWalletError(null);
+        setTxStatus('Wallet connected');
+        return;
+      } catch (error) {
+        lastError = error;
+        if (!isMissingProviderError(error)) break;
+      }
     }
+    setWalletError(formatWalletConnectError(lastError));
+    setTxStatus('Wallet connection failed');
+  }
+
+  function getPreferredConnectors(availableConnectors: readonly Connector[]) {
+    return [...availableConnectors].sort((left, right) => connectorPriority(left) - connectorPriority(right));
+  }
+
+  function connectorPriority(connector: Connector) {
+    const label = `${connector.id} ${connector.name}`.toLowerCase();
+    if (label.includes('okx') || label.includes('okex')) return 0;
+    if (label.includes('injected')) return 1;
+    if (label.includes('metamask')) return 2;
+    return 3;
   }
 
   function formatWalletConnectError(error: unknown) {
@@ -233,6 +252,17 @@ export function App() {
       return 'Wallet connection was rejected. Open the wallet extension and approve the connection request.';
     }
     return message.slice(0, 220);
+  }
+
+  function isMissingProviderError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    const lower = message.toLowerCase();
+    return (
+      lower.includes('providernotfound') ||
+      lower.includes('provider not found') ||
+      lower.includes('no provider') ||
+      lower.includes('no ethereum provider')
+    );
   }
 
   async function claimFaucet() {
