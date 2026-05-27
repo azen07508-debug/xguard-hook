@@ -140,6 +140,14 @@ export function App() {
     query: { enabled: Boolean(isReadyDeployment && address) },
   });
 
+  const { data: faucetAlreadyClaimed, refetch: refetchFaucetClaimed } = useReadContract({
+    address: deployment?.demoRouter,
+    abi: demoRouterAbi,
+    functionName: 'faucetClaimed',
+    args: address ? [address] : undefined,
+    query: { enabled: Boolean(isReadyDeployment && address) },
+  });
+
   useEffect(() => {
     if (!publicClient || !deployment || !isReadyDeployment) return undefined;
     return publicClient.watchContractEvent({
@@ -187,7 +195,14 @@ export function App() {
   }, [poolRisk]);
 
   async function refreshReads() {
-    await Promise.all([refetchRisk(), refetchXgm(), refetchGusd(), refetchAllowance(), refetchLargePreview()]);
+    await Promise.all([
+      refetchRisk(),
+      refetchXgm(),
+      refetchGusd(),
+      refetchAllowance(),
+      refetchLargePreview(),
+      refetchFaucetClaimed(),
+    ]);
   }
 
   async function requireReady() {
@@ -267,6 +282,11 @@ export function App() {
 
   async function claimFaucet() {
     const loaded = await requireReady();
+    if (faucetAlreadyClaimed) {
+      setTxStatus('Faucet already claimed');
+      pushLocalEvent('Faucet', 'This wallet has already claimed demo tokens.', 'normal');
+      return;
+    }
     try {
       setTxStatus('Claiming demo tokens...');
       const hash = await writeContractAsync({
@@ -466,9 +486,13 @@ export function App() {
             {largeSwapPreview?.[0]?.toString() ?? '-'}, {largeSwapPreview?.[2] ? 'will block' : 'will execute'}.
           </p>
           <div className="button-grid">
-            <button type="button" onClick={claimFaucet} disabled={!isReadyDeployment || !address || isWriting}>
+            <button
+              type="button"
+              onClick={claimFaucet}
+              disabled={!isReadyDeployment || !address || isWriting || Boolean(faucetAlreadyClaimed)}
+            >
               <BadgeCheck size={18} />
-              Faucet
+              {faucetAlreadyClaimed ? 'Faucet Claimed' : 'Faucet'}
             </button>
             <button type="button" onClick={approveRouter} disabled={!isReadyDeployment || !address || isWriting}>
               <Shield size={18} />
