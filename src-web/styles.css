@@ -126,6 +126,11 @@ h2 {
   color: #8f241d;
 }
 
+.notice.warning {
+  border-color: #f1bf6c;
+  color: #7a4b08;
+}
+
 .dashboard {
   display: grid;
   grid-template-columns: 1.1fr 0.9fr;

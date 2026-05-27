@@ -76,10 +76,11 @@ export function App() {
   const [txStatus, setTxStatus] = useState<string>('Ready');
   const publicClient = usePublicClient({ chainId: xLayer.id });
   const { address, isConnected, chainId } = useAccount();
-  const { connectors, connect, isPending: isConnecting } = useConnect();
+  const { connectors, connectAsync, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
   const { writeContractAsync, isPending: isWriting } = useWriteContract();
+  const [walletError, setWalletError] = useState<string | null>(null);
 
   const isReadyDeployment = deployment && deployment.xguardHook !== '0x0000000000000000000000000000000000000000';
   const onWrongChain = isConnected && chainId !== xLayer.id;
@@ -195,6 +196,43 @@ export function App() {
       throw new Error('Switch to X Layer and retry');
     }
     return deployment;
+  }
+
+  async function connectWallet() {
+    setWalletError(null);
+    const connector = connectors[0];
+    if (!connector) {
+      const message = 'No injected wallet detected. Install or enable OKX Wallet / MetaMask, then refresh.';
+      setWalletError(message);
+      setTxStatus('Wallet connection failed');
+      return;
+    }
+    try {
+      setTxStatus('Opening wallet connection...');
+      await connectAsync({ connector, chainId: xLayer.id });
+      setWalletError(null);
+      setTxStatus('Wallet connected');
+    } catch (error) {
+      setWalletError(formatWalletConnectError(error));
+      setTxStatus('Wallet connection failed');
+    }
+  }
+
+  function formatWalletConnectError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    const lower = message.toLowerCase();
+    if (
+      lower.includes('providernotfound') ||
+      lower.includes('provider not found') ||
+      lower.includes('no provider') ||
+      lower.includes('no ethereum provider')
+    ) {
+      return 'No injected wallet detected. Install or enable OKX Wallet / MetaMask, then refresh.';
+    }
+    if (lower.includes('rejected') || lower.includes('denied') || lower.includes('user rejected')) {
+      return 'Wallet connection was rejected. Open the wallet extension and approve the connection request.';
+    }
+    return message.slice(0, 220);
   }
 
   async function claimFaucet() {
@@ -326,15 +364,22 @@ export function App() {
           ) : (
             <button
               type="button"
-              onClick={() => connect({ connector: connectors[0] })}
-              disabled={isConnecting || connectors.length === 0}
+              onClick={connectWallet}
+              disabled={isConnecting}
             >
               <Wallet size={18} />
-              Connect
+              {isConnecting ? 'Connecting...' : 'Connect'}
             </button>
           )}
         </div>
       </section>
+
+      {walletError && (
+        <section className="notice warning">
+          <AlertTriangle size={18} />
+          <span>{walletError}</span>
+        </section>
+      )}
 
       {onWrongChain && (
         <section className="notice protected">
