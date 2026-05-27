@@ -92,6 +92,12 @@ Verified results:
 - Project X/Twitter account URL.
 - X/Twitter launch post URL tagging `@XLayerOfficial`, `@Uniswap`, and `@flapdotsh`.
 
+Current publication status:
+
+- Local commit exists on `main`: `7b08afb feat: build xguard hook hackathon MVP`.
+- Public GitHub repository was created manually: `https://github.com/azen07508-debug/xguard-hook.git`.
+- Next action is to set `origin` to that repository and push `main`.
+
 ## Mainnet Deployment Gate
 
 The deployment gate has already been run on the current deployment. Re-run only after changing contracts, scripts, deployment JSON, or frontend behavior:

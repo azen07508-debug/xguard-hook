@@ -15,6 +15,38 @@ Expected sensitive state:
 - `.env` is ignored.
 - `node_modules/`, `out/`, `cache/`, `dist/`, and `tsconfig.tsbuildinfo` are ignored.
 
+If the repository has not been created yet and `gh auth status` reports an invalid token, re-authenticate first:
+
+```bash
+gh auth login -h github.com
+```
+
+Create and push the public repository:
+
+```bash
+gh repo create xguard-hook --public --source=. --remote=origin --push
+```
+
+Expected repository URL shape:
+
+```text
+https://github.com/<your-github-user-or-org>/xguard-hook
+```
+
+If the public repository already exists, connect and push the local repo:
+
+```bash
+git remote add origin https://github.com/azen07508-debug/xguard-hook.git
+git push -u origin main
+```
+
+If `origin` already exists:
+
+```bash
+git remote set-url origin https://github.com/azen07508-debug/xguard-hook.git
+git push -u origin main
+```
+
 Recommended public repo contents:
 
 - `src/`
@@ -63,6 +95,16 @@ The selected frontend host is Vercel. The repo includes `vercel.json` with:
 - public X Layer RPC URL: `https://rpc.xlayer.tech`.
 
 Do not add `.env`, `PRIVATE_KEY`, or any deployer key to Vercel. The Vercel frontend only needs public `VITE_*` values.
+
+Recommended Vercel flow:
+
+1. Import the GitHub repository `xguard-hook`.
+2. Keep the framework preset as Vite.
+3. Let Vercel read `vercel.json`.
+4. Confirm build command is `npm run web:build`.
+5. Confirm output directory is `dist`.
+6. Deploy.
+7. Open the Vercel URL and run the smoke checks below.
 
 The repo includes `.github/workflows/pages.yml`. If you publish this repo on GitHub, enable GitHub Pages with `GitHub Actions` as the source, then run the `Deploy frontend to GitHub Pages` workflow. The workflow builds `npm run web:build` and publishes `dist/`.
 
