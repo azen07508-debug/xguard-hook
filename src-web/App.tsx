@@ -49,6 +49,11 @@ type EventItem = {
 const riskLabels = ['Normal', 'Warning', 'Protected'];
 const riskTones = ['normal', 'warning', 'protected'] as const;
 const xguardSwapBlockedSelector = '224d9f7a';
+const normalSwapAmount = parseUnits('10', 18);
+const largeSwapAmount = parseUnits('60000', 18);
+const stressSwapAmount = largeSwapAmount * 3n;
+const blockedAmount = parseUnits('90000', 18);
+const fullDemoSpendAmount = normalSwapAmount + largeSwapAmount + stressSwapAmount + blockedAmount;
 
 function shortAddress(value?: string) {
   if (!value) return '0x0000...0000';
@@ -112,7 +117,7 @@ export function App() {
     address: deployment?.xguardHook,
     abi: xguardHookAbi,
     functionName: 'previewRisk',
-    args: deployment ? [deployment.poolId, true, parseUnits('60000', 18)] : undefined,
+    args: deployment ? [deployment.poolId, true, largeSwapAmount] : undefined,
     query: { enabled: Boolean(isReadyDeployment) },
   });
 
@@ -193,6 +198,17 @@ export function App() {
       lastUpdatedBlock: poolRisk?.[3]?.toString() ?? '-',
     };
   }, [poolRisk]);
+
+  const currency0Balance =
+    deployment?.currency0.toLowerCase() === deployment?.xgm.toLowerCase() ? xgmBalance : gusdBalance;
+  const faucetClaimStatusKnown = !address || faucetAlreadyClaimed !== undefined;
+  const hasFaucetClaimed = Boolean(faucetAlreadyClaimed);
+  const allowanceAmount = allowance ?? 0n;
+  const hasFullDemoApproval = allowanceAmount >= fullDemoSpendAmount;
+  const canRunNormalSwap = Boolean(currency0Balance && currency0Balance >= normalSwapAmount && allowanceAmount >= normalSwapAmount);
+  const canRunLargeSwap = Boolean(currency0Balance && currency0Balance >= largeSwapAmount && allowanceAmount >= largeSwapAmount);
+  const canRunStressTest = Boolean(currency0Balance && currency0Balance >= stressSwapAmount && allowanceAmount >= stressSwapAmount);
+  const canRunBlockedSwap = Boolean(currency0Balance && currency0Balance >= blockedAmount && allowanceAmount >= blockedAmount);
 
   async function refreshReads() {
     await Promise.all([
@@ -283,8 +299,8 @@ export function App() {
   async function claimFaucet() {
     const loaded = await requireReady();
     if (faucetAlreadyClaimed) {
-      setTxStatus('Faucet already claimed');
-      pushLocalEvent('Faucet', 'This wallet has already claimed demo tokens.', 'normal');
+      setTxStatus('Demo tokens ready');
+      pushLocalEvent('Faucet', 'Demo tokens are already available for this wallet.', 'normal');
       return;
     }
     try {
@@ -393,8 +409,6 @@ export function App() {
     return Object.values(value).some((entry) => hasXGuardSwapBlockedReason(entry, seen));
   }
 
-  const blockedAmount = parseUnits('90000', 18);
-
   return (
     <main className="app-shell">
       <section className="topbar">
@@ -482,6 +496,10 @@ export function App() {
           </div>
           <div className="tx-status">{txStatus}</div>
           <p className="hint">
+            Demo flow: {hasFaucetClaimed ? 'demo tokens are ready, continue from approval and swaps.' : 'claim demo tokens first.'}{' '}
+            {hasFullDemoApproval ? 'Router approval is ready.' : 'Approve once before running swaps.'}
+          </p>
+          <p className="hint">
             Large swap preview: fee {feeToPercent(Number(largeSwapPreview?.[1] ?? 3_000))}, score{' '}
             {largeSwapPreview?.[0]?.toString() ?? '-'}, {largeSwapPreview?.[2] ? 'will block' : 'will execute'}.
           </p>
@@ -489,19 +507,23 @@ export function App() {
             <button
               type="button"
               onClick={claimFaucet}
-              disabled={!isReadyDeployment || !address || isWriting || Boolean(faucetAlreadyClaimed)}
+              disabled={!isReadyDeployment || !address || isWriting || !faucetClaimStatusKnown}
             >
               <BadgeCheck size={18} />
-              {faucetAlreadyClaimed ? 'Faucet Claimed' : 'Faucet'}
+              {hasFaucetClaimed ? 'Tokens Ready' : 'Faucet'}
             </button>
-            <button type="button" onClick={approveRouter} disabled={!isReadyDeployment || !address || isWriting}>
+            <button
+              type="button"
+              onClick={approveRouter}
+              disabled={!isReadyDeployment || !address || isWriting || hasFullDemoApproval}
+            >
               <Shield size={18} />
-              Approve
+              {hasFullDemoApproval ? 'Approved' : 'Approve'}
             </button>
             <button
               type="button"
               onClick={() => demoSwap('demoNormalSwap', 'Normal Swap')}
-              disabled={!isReadyDeployment || !address || isWriting}
+              disabled={!isReadyDeployment || !address || isWriting || !canRunNormalSwap}
             >
               <ArrowDownUp size={18} />
               Normal Swap
@@ -509,7 +531,7 @@ export function App() {
             <button
               type="button"
               onClick={() => demoSwap('demoLargeSwap', 'Large Swap')}
-              disabled={!isReadyDeployment || !address || isWriting}
+              disabled={!isReadyDeployment || !address || isWriting || !canRunLargeSwap}
             >
               <Gauge size={18} />
               Large Swap
@@ -518,7 +540,7 @@ export function App() {
               type="button"
               className="wide danger"
               onClick={() => demoSwap('demoStressSwap', 'Stress Test')}
-              disabled={!isReadyDeployment || !address || isWriting}
+              disabled={!isReadyDeployment || !address || isWriting || !canRunStressTest}
             >
               <AlertTriangle size={18} />
               Stress Test
@@ -527,7 +549,7 @@ export function App() {
               type="button"
               className="wide danger"
               onClick={() => swap(blockedAmount, 1, 'Blocked Swap')}
-              disabled={!isReadyDeployment || !address || isWriting}
+              disabled={!isReadyDeployment || !address || isWriting || !canRunBlockedSwap}
             >
               <AlertTriangle size={18} />
               Blocked Swap
