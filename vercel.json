@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run web:build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/((?!deployments/.*).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "env": {
+    "VITE_DEPLOYMENT_URL": "/deployments/xlayer-mainnet.json",
+    "VITE_XLAYER_RPC_URL": "https://rpc.xlayer.tech"
+  }
+}

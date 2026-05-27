@@ -1,0 +1,43 @@
+{
+  "chainId": 196,
+  "account": "0x3a4434BAaD765136A40F597E29d325B41b9DEC61",
+  "deploymentPath": "deployments/xlayer-mainnet.json",
+  "generatedAt": "2026-05-26T23:43:11.395Z",
+  "steps": [
+    {
+      "name": "faucet",
+      "hash": "0x89dd3ce9ad9f6f5a2c8d62354168d39e2758ac74b9895a749a09de7ab1b58d7c",
+      "status": "success",
+      "explorer": "https://www.oklink.com/xlayer/tx/0x89dd3ce9ad9f6f5a2c8d62354168d39e2758ac74b9895a749a09de7ab1b58d7c"
+    },
+    {
+      "name": "approve",
+      "hash": "0x7912a6f8424473d70a11167d8b44f9922d605812a325d5ce8ad32aa449b4c8d8",
+      "status": "success",
+      "explorer": "https://www.oklink.com/xlayer/tx/0x7912a6f8424473d70a11167d8b44f9922d605812a325d5ce8ad32aa449b4c8d8"
+    },
+    {
+      "name": "normalSwap",
+      "hash": "0xc38368056cb5080aaa8fd9d311bac63f66a81c27bf8dd705d47a65e2d41e6b90",
+      "status": "success",
+      "explorer": "https://www.oklink.com/xlayer/tx/0xc38368056cb5080aaa8fd9d311bac63f66a81c27bf8dd705d47a65e2d41e6b90"
+    },
+    {
+      "name": "largeSwap",
+      "hash": "0x672b5088951277387771c5d3d74395aae9d3773158f9afc760b38d16df54133c",
+      "status": "success",
+      "explorer": "https://www.oklink.com/xlayer/tx/0x672b5088951277387771c5d3d74395aae9d3773158f9afc760b38d16df54133c"
+    },
+    {
+      "name": "stressTest",
+      "hash": "0xb68f74a94810d7eeee795d3c365eca8835c3ada63cc860c0a53569c4a6f45ff2",
+      "status": "success",
+      "explorer": "https://www.oklink.com/xlayer/tx/0xb68f74a94810d7eeee795d3c365eca8835c3ada63cc860c0a53569c4a6f45ff2"
+    },
+    {
+      "name": "blockedSwap",
+      "status": "blocked",
+      "reason": "XGuardSwapBlocked"
+    }
+  ]
+}
