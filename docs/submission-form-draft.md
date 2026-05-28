@@ -66,9 +66,9 @@ Onchain demo txs:
 
 ## Links
 
-Repository: TODO after publishing public repo
+Repository: `https://github.com/azen07508-debug/xguard-hook`
 
-Frontend: TODO after publishing static frontend
+Frontend: `https://xguard-hook.vercel.app/`
 
 Demo video: TODO after recording/uploading demo video
 

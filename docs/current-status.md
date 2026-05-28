@@ -2,7 +2,7 @@
 
 Last updated: 2026-05-28.
 
-Current GitHub head: `f7bfafb` (`fix: make claimed faucet demo-ready`).
+Current GitHub head: `eca2dfe` (`docs: refresh final submission status`).
 
 ## Implemented
 
@@ -97,7 +97,7 @@ Current publication status:
 
 - `origin` points to `https://github.com/azen07508-debug/xguard-hook.git`.
 - Local `main` tracks `origin/main`.
-- Latest prepared commit is `f7bfafb`.
+- Latest prepared commit is `eca2dfe`.
 - GitHub metadata previously verified the repo is public and the default branch is `main`.
 
 ## Mainnet Deployment Gate
