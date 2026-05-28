@@ -1,6 +1,8 @@
 # XGuard Current Status
 
-Last updated: 2026-05-27.
+Last updated: 2026-05-28.
+
+Current GitHub head: `f7bfafb` (`fix: make claimed faucet demo-ready`).
 
 ## Implemented
 
@@ -56,7 +58,6 @@ npm run verify
 npm run build
 npm run submission:check
 npm run submission:check:final
-npm run submission:ready
 npm run deploy:xlayer:dry-run
 XLAYER_ALLOW_INSECURE_TLS=1 npm run preflight:xlayer
 npm run verify:xlayer-deployment
@@ -72,7 +73,7 @@ Verified results:
 - Frontend production build: completed successfully.
 - Project build path `forge build && npm run web:build`: completed successfully.
 - Submission file check: completed successfully before and after deployment.
-- Final readiness check exists as `npm run submission:ready`; it is expected to fail until demo video, project X/Twitter, and launch post URLs are filled in `docs/final-submission-package.md`.
+- Final readiness check exists as `npm run submission:ready`; it currently fails only until demo video, project X/Twitter, and launch post URLs are filled in `docs/final-submission-package.md`.
 - Hook address mining dry-run: completed successfully.
 - X Layer RPC preflight: chain id `196`, PoolManager and StateView bytecode present.
 - X Layer deployment verifier: runtime bytecode present for PoolManager, StateView, HookDeployer, Hook, DemoRouter, XGM, and gUSD; onchain risk state read successfully.
@@ -96,7 +97,8 @@ Current publication status:
 
 - `origin` points to `https://github.com/azen07508-debug/xguard-hook.git`.
 - Local `main` tracks `origin/main`.
-- GitHub metadata verifies the repo is public and the default branch is `main`.
+- Latest prepared commit is `f7bfafb`.
+- GitHub metadata previously verified the repo is public and the default branch is `main`.
 
 ## Mainnet Deployment Gate
 
