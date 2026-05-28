@@ -70,10 +70,10 @@ Repository: `https://github.com/azen07508-debug/xguard-hook`
 
 Frontend: `https://xguard-hook.vercel.app/`
 
-Demo video: TODO after recording/uploading demo video
+Demo video: `https://www.youtube.com/watch?v=JEAyIYO5uFk`
 
-Project X/Twitter: TODO after creating project account
+Project X/Twitter: `https://x.com/ZenAo365353`
 
-Launch post: TODO after posting with `@XLayerOfficial`, `@Uniswap`, and `@flapdotsh`
+Launch post: `https://x.com/ZenAo365353/status/2059872071178649923`
 
 For all copyable deployment fields and explorer links, use `docs/final-submission-package.md`.

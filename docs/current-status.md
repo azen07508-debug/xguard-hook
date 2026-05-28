@@ -86,12 +86,13 @@ Verified results:
 - CI is prepared in `.github/workflows/ci.yml`.
 - Optional GitHub Pages deployment is prepared in `.github/workflows/pages.yml`.
 
-## Remaining Submission Work
+## Final Submission Links
 
-- Demo video URL.
-- Project X/Twitter account URL.
-- X/Twitter launch post URL tagging `@XLayerOfficial`, `@Uniswap`, and `@flapdotsh`.
-- Final update of `docs/final-submission-package.md` and `docs/google-form-answers.md` after the three remaining external links are available.
+- Demo video: `https://www.youtube.com/watch?v=JEAyIYO5uFk`
+- Project X/Twitter: `https://x.com/ZenAo365353`
+- Launch post: `https://x.com/ZenAo365353/status/2059872071178649923`
+- Final submission package: `docs/final-submission-package.md`
+- Google Form draft: `docs/google-form-answers.md`
 
 Current publication status:
 

@@ -85,11 +85,11 @@ Repository URL: `https://github.com/azen07508-debug/xguard-hook`
 
 Public frontend URL: `https://xguard-hook.vercel.app/`
 
-Demo video URL: `TODO`
+Demo video URL: `https://www.youtube.com/watch?v=JEAyIYO5uFk`
 
-Project X/Twitter URL: `TODO`
+Project X/Twitter URL: `https://x.com/ZenAo365353`
 
-Launch post URL: `TODO`
+Launch post URL: `https://x.com/ZenAo365353/status/2059872071178649923`
 
 ## Recommended Form Notes
 
