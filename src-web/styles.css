@@ -1,337 +1,935 @@
+/* ============================================================
+   XGuard Hook — OKX 终端风格
+   设计语言来源：okx.com 实测令牌（纯黑 / 零圆角 / 发丝线 / 14px 密集数据）
+   规则：层级靠字重与灰度，不靠字号与阴影
+   ============================================================ */
+
 :root {
-  color: #18211f;
-  background: #f5f7f4;
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  /* 底色：OKX 用纯黑 */
+  --bg: #000000;
+  /* 面板四级递进 */
+  --panel: #121212;
+  --panel-2: #1d1d1d;
+  --panel-3: #2e2e2e;
+  --line: #383838;
+  --line-weak: #2e2e2e;
+  --line-strong: #4a4a4a;
+
+  /* 文字四级灰阶 */
+  --fg: #ffffff;
+  --fg-2: #fafafa;
+  --fg-3: #b0b0b0;
+  --fg-4: #909090;
+  /* 最弱一级：OKX 原值 #5b5b5b 在纯黑上只有 3.1:1，不达 AA。
+     这里提到 #7a7a7a（4.9:1），层级仍然清晰（白 → b0 → 90 → 7a）。 */
+  --fg-5: #7a7a7a;
+
+  /* 语义色（取自 OKX 实测值） */
+  --pos: #25a750;
+  --neg: #ca3f64;
+  --warn: #ffa726;
+
+  /* 叠加层 */
+  --hover: rgba(255, 255, 255, 0.06);
+  --hover-2: rgba(255, 255, 255, 0.13);
+
+  --sans: Inter, "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mono: "SF Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --rail: 56px;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
 }
 
+button, input, select { font: inherit; color: inherit; }
+
+/* 数字统一等宽对齐 —— 终端的基本要求 */
+.num, dd, .metrics strong, .strip-value, .risk-score {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─────────── 焦点：OKX 用白色描边，不用彩色光晕 ─────────── */
+:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 1px;
+}
+
+/* ─────────── 按钮：方形、紧凑、无圆角 ─────────── */
 button {
-  border: 0;
-  border-radius: 8px;
-  background: #18211f;
-  color: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--panel-2);
+  color: var(--fg-2);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  font: inherit;
-  min-height: 42px;
-  padding: 0 16px;
-}
-
-button:hover:not(:disabled) {
-  background: #26342f;
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.app-shell {
-  width: min(1180px, calc(100% - 32px));
-  margin: 0 auto;
-  padding: 28px 0 40px;
-}
-
-.topbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 24px;
-}
-
-.eyebrow {
-  color: #0b7f72;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
   font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0;
-  margin: 0 0 8px;
-  text-transform: uppercase;
-}
-
-h1,
-h2,
-p {
-  margin-top: 0;
-}
-
-h1 {
-  font-size: clamp(38px, 7vw, 72px);
-  line-height: 0.95;
-  margin-bottom: 12px;
-}
-
-h2 {
-  font-size: 18px;
-  margin-bottom: 0;
-}
-
-.subtitle {
-  color: #5b6763;
-  font-size: 18px;
-  line-height: 1.55;
-  max-width: 700px;
-}
-
-.wallet-box,
-.notice,
-.risk-panel,
-.actions-panel,
-.info-panel,
-.events-panel {
-  border: 1px solid #d8ded8;
-  background: #ffffff;
-  border-radius: 8px;
-}
-
-.wallet-box {
-  align-items: center;
-  display: flex;
-  gap: 10px;
-  min-height: 58px;
-  padding: 8px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: background-color 0.12s linear, border-color 0.12s linear;
   white-space: nowrap;
 }
 
-.wallet-box span {
-  color: #5b6763;
-  padding-left: 8px;
+button:hover:not(:disabled) {
+  background: var(--panel-3);
+  border-color: var(--line-strong);
 }
 
-.notice {
-  align-items: center;
+button:active:not(:disabled) { background: #3a3a3a; }
+
+/* 禁用态：靠背景与边框表达「不可用」，而不是把文字压到读不出来。
+   深色 UI 里常见的做法是把禁用文字调到 2:1 左右，那是无障碍问题。 */
+button:disabled {
+  cursor: not-allowed;
+  background: #141414;
+  border-color: #262626;
+  color: #8a8a8a;
+}
+
+/* 主操作：OKX 的强调绿 */
+button.primary {
+  background: var(--pos);
+  border-color: var(--pos);
+  color: #04150a;
+  font-weight: 600;
+}
+
+button.primary:hover:not(:disabled) {
+  background: #2bb85a;
+  border-color: #2bb85a;
+}
+
+button.primary:disabled {
+  background: #14261a;
+  border-color: #23392a;
+  color: #7fb894;
+}
+
+/* 危险操作：OKX 的玫红 */
+button.danger {
+  background: #2a1620;
+  border-color: #4a2635;
+  color: #e06a8b;
+}
+
+button.danger:hover:not(:disabled) {
+  background: #3a1e2b;
+  border-color: #6a3648;
+  color: #ef87a4;
+}
+
+button.danger:disabled {
+  background: #1a1216;
+  border-color: #2a1d22;
+  color: #b07587;
+}
+
+/* ─────────── 外壳 ─────────── */
+.app-shell {
+  width: min(1280px, 100%);
+  margin: 0 auto;
+  padding: 0 24px 56px;
+}
+
+/* ─────────── 顶栏：品牌 + 钱包，底部发丝线 ─────────── */
+.topbar {
   display: flex;
-  gap: 12px;
-  margin-bottom: 18px;
-  padding: 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  height: 56px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0;
 }
 
-.notice.protected {
-  border-color: #f0b3aa;
-  color: #8f241d;
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
-.notice.warning {
-  border-color: #f1bf6c;
-  color: #7a4b08;
-}
-
-.dashboard {
+.brand-mark {
+  width: 26px;
+  height: 26px;
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 18px;
-  margin-bottom: 18px;
+  place-items: center;
+  background: var(--fg);
+  color: #000;
+  font: 800 12px/1 var(--mono);
+  flex: 0 0 auto;
 }
 
-.risk-panel,
-.actions-panel,
-.info-panel,
-.events-panel {
-  padding: 22px;
-}
-
-.risk-panel.normal {
-  border-color: #9ed7c9;
-}
-
-.risk-panel.warning {
-  border-color: #f1bf6c;
-}
-
-.risk-panel.protected {
-  border-color: #e78f83;
-}
-
-.risk-heading,
-.panel-title {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-}
-
-.risk-heading span {
-  color: #5b6763;
-  display: block;
+.brand-name {
   font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
-.risk-heading strong {
-  display: block;
-  font-size: 42px;
-  line-height: 1.1;
+.brand-sub {
+  font: 500 11px/1 var(--mono);
+  color: var(--fg-5);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding-left: 10px;
+  margin-left: 2px;
+  border-left: 1px solid var(--line);
 }
 
-.gauge {
-  background: #e8ede8;
-  border-radius: 999px;
-  height: 16px;
-  margin: 28px 0 22px;
-  overflow: hidden;
+.wallet-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
 }
 
-.gauge-fill {
-  background: linear-gradient(90deg, #0b7f72, #d89b27, #cb3e32);
-  height: 100%;
-  max-width: 100%;
+.wallet-address {
+  font: 500 12px/1 var(--mono);
+  color: var(--fg-3);
+  padding: 0 12px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: var(--panel);
 }
 
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+/* ─────────── 页头：OKX 营销面的巨型粗体标题 ─────────── */
+.page-head {
+  padding: 40px 0 28px;
+  border-bottom: 1px solid var(--line);
 }
 
-.metrics div,
-.balance-row,
-dl {
-  background: #f5f7f4;
-  border-radius: 8px;
-  padding: 14px;
+.eyebrow {
+  font: 600 11px/1 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pos);
+  margin: 0 0 14px;
 }
 
-.metrics span,
-dt,
-.hint,
-.empty {
-  color: #65716d;
+h1 {
+  font-size: clamp(34px, 4.6vw, 56px);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 700;
+  margin: 0 0 14px;
+}
+
+.subtitle {
+  color: var(--fg-4);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 62ch;
+  margin: 0;
+}
+
+/* ─────────── 资金流示意（视觉锚点）─────────── */
+.flow-wrap {
+  padding: 36px 0 34px;
+  border-bottom: 1px solid var(--line);
+}
+
+.flow {
+  display: flex;
+  align-items: center;
+}
+
+.flow-node {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 15px 16px 16px;
+  background: #0d0d0d;
+  border: 1px solid var(--line);
+}
+
+.flow-node.is-hot {
+  border-color: var(--pos);
+  padding-top: 13px;
+}
+
+.flow-tag {
+  font: 600 9.5px/1 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pos);
+  padding-bottom: 8px;
+  margin-bottom: 3px;
+  border-bottom: 1px solid #1e3a28;
+}
+
+.flow-label {
+  font: 500 9.5px/1 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-5);
+}
+
+.flow-value {
   font-size: 13px;
-}
-
-.metrics strong {
-  display: block;
-  font-size: 22px;
-  margin-top: 6px;
+  font-weight: 600;
+  color: var(--fg);
   overflow-wrap: anywhere;
 }
 
+.flow-node.is-hot .flow-value { color: var(--pos); }
+
+.flow-sub {
+  font: 500 10.5px/1.4 var(--mono);
+  color: var(--fg-4);
+  overflow-wrap: anywhere;
+}
+
+/* 箭头：细线 + 三角头 */
+.flow-arrow {
+  flex: 0 0 40px;
+  height: 1px;
+  background: #4a4a4a;
+  position: relative;
+  overflow: hidden;
+}
+
+.flow-arrow::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: -3px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid #4a4a4a;
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+}
+
+/* ─────────── 交易进行中：让「流」被看见 ─────────── */
+.flow-wrap.is-active .flow-arrow {
+  background: #2a2a2a;
+}
+
+.flow-wrap.is-active .flow-arrow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--pos), transparent);
+  animation: flow-sweep 1.1s linear infinite;
+}
+
+@keyframes flow-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+.flow-wrap.is-active .flow-node {
+  animation: flow-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes flow-pulse {
+  0%, 100% { border-color: var(--line); background: #0d0d0d; }
+  50% { border-color: #4a4a4a; background: #151515; }
+}
+
+/* Hook 节点保持绿框，只让底色脉动 */
+.flow-wrap.is-active .flow-node.is-hot {
+  animation-name: flow-pulse-hot;
+}
+
+@keyframes flow-pulse-hot {
+  0%, 100% { background: #0d0d0d; }
+  50% { background: #10261a; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-wrap.is-active .flow-arrow::before,
+  .flow-wrap.is-active .flow-node {
+    animation: none;
+  }
+}
+
+/* ─────────── 风险曲线 ─────────── */
+.curve {
+  margin-top: 24px;
+  border-top: 1px solid var(--line-weak);
+  padding-top: 16px;
+}
+
+.curve-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.curve-title {
+  font: 500 11px/1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-5);
+}
+
+.curve-meta {
+  font: 500 11px/1 var(--mono);
+  color: var(--fg-5);
+}
+
+.curve-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--fg-4);
+}
+
+.curve-svg.pos { color: var(--pos); }
+.curve-svg.warn { color: var(--warn); }
+.curve-svg.neg { color: var(--neg); }
+
+.curve-grid {
+  stroke: #232323;
+  stroke-width: 1;
+}
+
+.curve-tick {
+  font: 500 9.5px var(--mono);
+  fill: var(--fg-5);
+}
+
+.curve-line {
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* 没有历史数据时用虚线占位：实线会让人误以为分数长期停在当前值 */
+.curve-line.is-placeholder {
+  stroke-dasharray: 5 5;
+  opacity: 0.45;
+}
+
+.curve-dot {
+  fill: currentColor;
+}
+
+/* ─────────── 行情条：单行密集数据，OKX 的标志性结构 ─────────── */
+.strip {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.strip-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 13px 20px;
+  border-right: 1px solid var(--line-weak);
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+.strip-item:first-child { padding-left: 0; }
+.strip-item:last-child { border-right: 0; }
+
+.strip-label {
+  font: 500 11px/1 var(--mono);
+  color: var(--fg-5);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.strip-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.strip-value.pos { color: var(--pos); }
+.strip-value.neg { color: var(--neg); }
+.strip-value.warn { color: var(--warn); }
+
+/* 方形状态指示器 —— OKX 用方块不用圆点 */
+.state-sq {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  vertical-align: 1px;
+  background: var(--fg-5);
+}
+.state-sq.pos { background: var(--pos); }
+.state-sq.neg { background: var(--neg); }
+.state-sq.warn { background: var(--warn); }
+
+/* ─────────── 通栏提示条 ─────────── */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-left-width: 2px;
+  background: var(--panel);
+  font-size: 13px;
+  color: var(--fg-3);
+  margin-top: 14px;
+}
+
+.notice.warning { border-left-color: var(--warn); }
+.notice.protected { border-left-color: var(--neg); }
+
+/* ─────────── 主工作区 ─────────── */
+.dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  align-items: start;
+  border-bottom: 1px solid var(--line);
+}
+
+.panel {
+  padding: 22px 24px 26px;
+  border-right: 1px solid var(--line);
+  min-width: 0;
+}
+
+.panel:last-child { border-right: 0; }
+.panel.flush-right { padding-right: 0; }
+.panel.flush-left { padding-left: 0; }
+
+/* 区块标题：小、弱、带下划线 —— 终端的分区方式 */
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line-weak);
+  margin-bottom: 18px;
+  color: var(--fg-4);
+}
+
+.panel-title svg { flex: 0 0 auto; opacity: 0.7; }
+
+.panel-title h2 {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+  margin: 0;
+}
+
+/* ─────────── 风险读数 ─────────── */
+.risk-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.risk-head-label {
+  font: 500 11px/1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-5);
+  display: block;
+  margin-bottom: 9px;
+}
+
+.risk-state {
+  display: flex;
+  align-items: center;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.risk-state.pos { color: var(--pos); }
+.risk-state.neg { color: var(--neg); }
+.risk-state.warn { color: var(--warn); }
+
+.risk-score {
+  font: 700 34px/1 var(--mono);
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+
+.risk-score small {
+  display: block;
+  font: 500 11px/1 var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--fg-5);
+  text-align: right;
+  margin-top: 7px;
+}
+
+/* 仪表：带刻度的读数条，不是圆角进度条 */
+.gauge {
+  position: relative;
+  height: 26px;
+  background: #141414;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+/* 刻度线：每 5% 一条 */
+.gauge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(5% - 1px),
+    rgba(255, 255, 255, 0.14) calc(5% - 1px),
+    rgba(255, 255, 255, 0.14) 5%
+  );
+  pointer-events: none;
+}
+
+.gauge-fill {
+  height: 100%;
+  background: var(--fg-4);
+  transition: width 0.3s linear, background-color 0.3s linear;
+}
+
+.risk-panel.normal .gauge-fill { background: var(--pos); }
+.risk-panel.warning .gauge-fill { background: var(--warn); }
+.risk-panel.protected .gauge-fill { background: var(--neg); }
+
+/* 位置指针：风险分为 0 时填充宽度为 0，仪表会完全空掉。
+   加一条始终可见的指针，读数落在哪就指在哪，静止态也有东西可看。 */
+.gauge-marker {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--fg);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+  transition: left 0.3s linear;
+}
+
+.gauge-marker.pos { background: var(--pos); }
+.gauge-marker.warn { background: var(--warn); }
+.gauge-marker.neg { background: var(--neg); }
+
+.gauge-scale {
+  display: flex;
+  justify-content: space-between;
+  font: 500 10px/1 var(--mono);
+  color: var(--fg-5);
+  letter-spacing: 0.06em;
+  margin-top: 7px;
+}
+
+/* ─────────── 指标：右对齐行，不是卡片 ─────────── */
+.metrics {
+  margin-top: 26px;
+  border-top: 1px solid var(--line-weak);
+}
+
+.metric-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 11px 0;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.metric-row:last-child { border-bottom: 0; }
+
+.metric-row span {
+  font-size: 13px;
+  color: var(--fg-4);
+}
+
+.metric-row strong {
+  font: 600 15px/1 var(--mono);
+  color: var(--fg);
+  text-align: right;
+}
+
+/* ─────────── 风险态图例 ─────────── */
+.risk-zones {
+  margin-top: 24px;
+  border-top: 1px solid var(--line-weak);
+  padding-top: 16px;
+}
+
+.risk-zones-title {
+  display: block;
+  font: 500 11px/1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-5);
+  margin-bottom: 12px;
+}
+
+.zone-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 10px;
+  margin-left: -10px;
+  border-left: 2px solid transparent;
+  font-size: 12.5px;
+  color: var(--fg-4);
+}
+
+.zone-row.is-current {
+  background: var(--panel);
+  border-left-color: var(--fg-4);
+  color: var(--fg-2);
+}
+
+.zone-row.is-current.pos { border-left-color: var(--pos); }
+.zone-row.is-current.warn { border-left-color: var(--warn); }
+.zone-row.is-current.neg { border-left-color: var(--neg); }
+
+.zone-name {
+  font-weight: 600;
+  min-width: 72px;
+  color: var(--fg-3);
+}
+
+.zone-row.is-current .zone-name { color: var(--fg); }
+
+.zone-desc {
+  font-size: 12px;
+  color: var(--fg-5);
+  margin-left: auto;
+  text-align: right;
+}
+
+/* ─────────── 操作面板 ─────────── */
 .balance-row {
   display: flex;
-  gap: 12px;
   justify-content: space-between;
-  margin: 18px 0;
+  gap: 16px;
+  padding: 11px 13px;
+  background: var(--panel);
+  border: 1px solid var(--line-weak);
+  font: 500 12px/1 var(--mono);
+  color: var(--fg-3);
+  margin-bottom: 14px;
 }
 
 .tx-status {
-  background: #edf4f2;
-  border: 1px solid #d8ded8;
-  border-radius: 8px;
-  color: #36514b;
-  font-size: 14px;
-  margin: 0 0 12px;
-  min-height: 38px;
-  padding: 9px 12px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  padding: 9px 13px;
+  background: var(--panel);
+  border: 1px solid var(--line-weak);
+  border-left: 2px solid var(--fg-5);
+  color: var(--fg-3);
+  font-size: 13px;
+  margin-bottom: 16px;
 }
 
 .button-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.button-grid .wide {
-  grid-column: 1 / -1;
-}
-
-.button-grid .danger {
-  background: #8f241d;
-}
-
-.button-grid .danger:hover:not(:disabled) {
-  background: #a7332a;
-}
+.button-grid .wide { grid-column: 1 / -1; }
 
 .hint {
-  line-height: 1.5;
+  color: var(--fg-5);
+  font-size: 12px;
+  line-height: 1.6;
   margin: 16px 0 0;
 }
 
+.hint + .hint { margin-top: 10px; }
+
+/* ─────────── 底部：部署信息 + 事件流 ─────────── */
 .lower-grid {
   display: grid;
-  grid-template-columns: 0.8fr 1.2fr;
-  gap: 18px;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
 }
+
+.info-panel { border-right: 1px solid var(--line); }
 
 dl {
   display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 10px;
-  margin: 18px 0 0;
+  grid-template-columns: 96px minmax(0, 1fr);
+  margin: 0;
+  border-top: 1px solid var(--line-weak);
+}
+
+dt, dd {
+  padding: 10px 0;
+  border-bottom: 1px solid #1a1a1a;
+  font-size: 13px;
+}
+
+dt {
+  color: var(--fg-5);
+  font: 500 12px/1.6 var(--mono);
+  letter-spacing: 0.04em;
 }
 
 dd {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   margin: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--fg-2);
+  text-align: right;
   overflow-wrap: anywhere;
 }
 
+/* 事件流：左侧状态色条 + 发丝线分隔 */
 .events-panel ul {
-  display: grid;
-  gap: 10px;
   list-style: none;
-  margin: 18px 0 0;
+  margin: 0;
   padding: 0;
+  border-top: 1px solid var(--line-weak);
 }
 
 .events-panel li {
-  border-left: 4px solid #0b7f72;
-  background: #f5f7f4;
-  border-radius: 8px;
   display: grid;
   gap: 4px;
-  padding: 12px;
+  padding: 12px 0 12px 13px;
+  border-bottom: 1px solid #1a1a1a;
+  border-left: 2px solid var(--pos);
 }
 
-.events-panel li.warning {
-  border-color: #d89b27;
-}
+.events-panel li.warning { border-left-color: var(--warn); }
+.events-panel li.protected { border-left-color: var(--neg); }
 
-.events-panel li.protected {
-  border-color: #cb3e32;
+.events-panel li strong {
+  font: 600 12px/1.3 var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--fg);
 }
 
 .events-panel li span {
-  color: #5b6763;
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--fg-4);
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 840px) {
-  .topbar,
+/* 空状态：虚线框 + 说明如何填充 */
+.empty {
+  margin: 0;
+  padding: 30px 20px;
+  border: 1px dashed var(--line);
+  color: var(--fg-5);
+  font-size: 13px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+/* ─────────── 响应式 ─────────── */
+@media (max-width: 980px) {
   .dashboard,
-  .lower-grid,
-  .metrics {
-    grid-template-columns: 1fr;
+  .lower-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
+
+  .panel,
+  .info-panel {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .panel:last-child,
+  .lower-grid > .panel:last-child { border-bottom: 0; }
+}
+
+@media (max-width: 720px) {
+  .app-shell { padding: 0 16px 40px; }
 
   .topbar {
-    display: grid;
+    height: auto;
+    min-height: 56px;
+    padding: 10px 0;
+    flex-wrap: wrap;
+    gap: 12px;
   }
 
-  .wallet-box {
-    justify-content: space-between;
+  .brand-sub { display: none; }
+
+  .page-head { padding: 28px 0 22px; }
+
+  h1 { font-size: 32px; letter-spacing: -0.03em; }
+
+  /* 流程图改纵向：窄屏横向滚动对流程图不友好 */
+  .flow {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .risk-heading strong {
-    font-size: 34px;
+  .flow-node { flex: 0 0 auto; }
+
+  .flow-arrow {
+    flex: 0 0 26px;
+    width: 1px;
+    height: 26px;
+    margin-left: 30px;
   }
 
-  .button-grid {
-    grid-template-columns: 1fr;
+  .flow-arrow::after {
+    right: auto;
+    left: -3px;
+    top: auto;
+    bottom: 0;
+    border-left: 3.5px solid transparent;
+    border-right: 3.5px solid transparent;
+    border-top: 6px solid #4a4a4a;
+    border-bottom: 0;
   }
+
+  .strip { flex-wrap: wrap; }
+
+  .strip-item {
+    flex: 1 1 45%;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line-weak);
+  }
+
+  .strip-item:nth-child(odd) { padding-left: 0; }
+  .strip-item:nth-child(even) { border-right: 0; }
+
+  .risk-head { flex-direction: column; align-items: flex-start; gap: 12px; }
+
+  .button-grid { grid-template-columns: minmax(0, 1fr); }
+
+  dl { grid-template-columns: 82px minmax(0, 1fr); }
 }
