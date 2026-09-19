@@ -180,3 +180,14 @@ It writes `deployments/xlayer-demo-results.json` with transaction hashes and OKL
 Chinese name: `XGuard Hook：新资产池的动态保护层`
 
 One-liner: XGuard is a dynamic risk-fee Hook for Uniswap v4 pools on X Layer, increasing LP fees under high-impact or abnormal swap conditions while exposing transparent onchain risk states.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+The license covers the source code in this repository. It does not grant rights to any third-party
+trademarks or brand names referenced in the documentation. The deployment addresses listed above are
+reference deployments, not production infrastructure.
+
+**The contracts have not been audited.** Do not deploy them to mainnet with real funds without an
+independent security review.
