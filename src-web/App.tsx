@@ -211,13 +211,26 @@ function RiskCurve({
 }
 
 async function loadDeployment() {
-  const path = import.meta.env.VITE_DEPLOYMENT_URL ?? '/deployments/xlayer-mainnet.json';
-  let response = await fetch(path);
-  if (!response.ok && !import.meta.env.VITE_DEPLOYMENT_URL) {
-    response = await fetch('/deployments/xlayer-mainnet.example.json');
+  // BASE_URL 在 base: './' 下是 './'，在根路径部署下是 '/'。
+  // 用它拼部署 JSON 的路径，子路径部署（GitHub Pages）才取得到文件。
+  const base = import.meta.env.BASE_URL || '/';
+  const configured = import.meta.env.VITE_DEPLOYMENT_URL;
+  const candidates = [
+    configured,
+    `${base}deployments/xlayer-mainnet.json`,
+    `${base}deployments/xlayer-mainnet.example.json`,
+  ].filter((value): value is string => Boolean(value));
+
+  for (const path of candidates) {
+    try {
+      const response = await fetch(path);
+      if (response.ok) return (await response.json()) as Deployment;
+    } catch {
+      /* 取不到就试下一个候选路径 */
+    }
   }
-  if (!response.ok) throw new Error(`Failed to load ${path}`);
-  return (await response.json()) as Deployment;
+
+  throw new Error(`Failed to load deployment JSON (tried: ${candidates.join(', ')})`);
 }
 
 export function App() {
