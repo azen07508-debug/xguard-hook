@@ -1,11 +1,11 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import {
   hasRuntimeCode,
   isEnabled,
   parseRpcChainId,
   privateKeyStatus,
   readEnv,
+  resolveFromRoot,
   validateDeploymentShape,
   xLayerChainId,
   xLayerPoolManager,
@@ -66,7 +66,7 @@ async function main() {
   failed ||= !stateViewOk;
   report(stateViewOk, 'Uniswap v4 StateView code', xLayerStateView);
 
-  const resolvedDeploymentPath = path.join(root, deploymentPath);
+  const resolvedDeploymentPath = resolveFromRoot(root, deploymentPath);
   if (fs.existsSync(resolvedDeploymentPath)) {
     const deployment = JSON.parse(fs.readFileSync(resolvedDeploymentPath, 'utf8'));
     const missing = validateDeploymentShape(deployment);

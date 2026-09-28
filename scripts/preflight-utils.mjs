@@ -3,6 +3,14 @@ import path from 'node:path';
 import { getAddress, isAddress } from 'viem';
 
 export const xLayerChainId = 196;
+
+/**
+ * 用户传入的路径可能是绝对路径，直接 path.join(root, '/tmp/x.json')
+ * 会得到 'root/tmp/x.json'。
+ */
+export function resolveFromRoot(root, target) {
+  return path.isAbsolute(target) ? target : path.join(root, target);
+}
 export const xLayerPoolManager = getAddress('0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32');
 export const xLayerStateView = getAddress('0x76Fd297e2D437cd7f76d50F01AfE6160f86e9990');
 

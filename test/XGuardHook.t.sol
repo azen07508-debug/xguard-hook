@@ -144,6 +144,145 @@ contract XGuardHookTest is Test {
         assertEq(currentFee, 3_000);
     }
 
+    function testSetPoolConfigBeforeFirstTouchIsNotClobbered() public {
+        PoolKey memory freshKey = PoolKey({
+            currency0: Currency.wrap(address(0x3000)),
+            currency1: Currency.wrap(address(0x4000)),
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: 60,
+            hooks: IHooks(address(hook))
+        });
+        PoolId freshId = freshKey.toId();
+
+        XGuardHook.PoolConfig memory custom = hook.defaultConfig();
+        custom.baseFee = 500;
+        custom.warningFee = 20_000;
+        hook.setPoolConfig(freshKey, custom);
+
+        XGuardHook.PoolConfig memory stored = hook.getPoolConfig(freshId);
+        assertEq(stored.baseFee, 500, "custom baseFee was overwritten by defaultConfig");
+        assertEq(stored.warningFee, 20_000, "custom warningFee was overwritten by defaultConfig");
+    }
+
+    function testSetPoolConfigRejectsZeroBaseFee() public {
+        XGuardHook.PoolConfig memory config = hook.defaultConfig();
+        config.baseFee = 0;
+
+        vm.expectRevert(XGuardHook.InvalidPoolConfig.selector);
+        hook.setPoolConfig(key, config);
+    }
+
+    function testRegisterPoolRejectsKeyPointingAtAnotherHook() public {
+        PoolKey memory foreignKey = PoolKey({
+            currency0: Currency.wrap(address(0x5000)),
+            currency1: Currency.wrap(address(0x6000)),
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: 60,
+            hooks: IHooks(address(0xBEEF))
+        });
+
+        vm.expectRevert(XGuardHook.PoolMustUseThisHook.selector);
+        hook.registerPool(foreignKey, 1_000_000 ether);
+    }
+
+    function testSetPoolConfigTakesEffectOnNextSwap() public {
+        XGuardHook.PoolConfig memory config = hook.defaultConfig();
+        config.baseFee = 500;
+        config.warningFee = 20_000;
+        hook.setPoolConfig(key, config);
+
+        (, uint24 fee) = _beforeSwap(1_000 ether, true);
+        assertEq(fee, 500 | LPFeeLibrary.OVERRIDE_FEE_FLAG);
+
+        _beforeSwap(60_000 ether, true);
+        (, uint24 warningFee) = _beforeSwap(1_000 ether, true);
+        assertEq(warningFee, 20_000 | LPFeeLibrary.OVERRIDE_FEE_FLAG);
+    }
+
+    function testSetReferenceLiquidityKeepsConfigAndRiskState() public {
+        XGuardHook.PoolConfig memory config = hook.defaultConfig();
+        config.baseFee = 500;
+        config.warningFee = 20_000;
+        hook.setPoolConfig(key, config);
+        _beforeSwap(60_000 ether, true);
+
+        hook.setReferenceLiquidity(key, 500_000 ether);
+
+        assertEq(hook.getReferenceLiquidity(poolId), 500_000 ether);
+
+        XGuardHook.PoolConfig memory stored = hook.getPoolConfig(poolId);
+        assertEq(stored.baseFee, 500, "reference update reset config to default");
+        assertEq(stored.warningFee, 20_000, "reference update reset config to default");
+
+        (XGuardHook.RiskState state, uint256 score, uint24 currentFee,) = hook.getPoolRisk(poolId);
+        assertEq(uint8(state), uint8(XGuardHook.RiskState.Warning), "reference update cleared risk state");
+        assertEq(score, 45, "reference update cleared risk score");
+        assertEq(currentFee, 20_000, "reference update reset current fee");
+    }
+
+    function testSetReferenceLiquidityTakesEffectOnNextSwap() public {
+        // 1_000_000 基准下 60_000 是 600 bps：够大额，但低于 800 bps 硬阈值
+        // 收紧到 50_000 后同一笔变成 12_000 bps，必须被硬拦
+        hook.setReferenceLiquidity(key, 50_000 ether);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                XGuardHook.XGuardSwapBlocked.selector, PoolId.unwrap(poolId), uint256(0), 60_000 ether
+            )
+        );
+        _beforeSwap(60_000 ether, true);
+    }
+
+    function testSetReferenceLiquidityRejectsZero() public {
+        vm.expectRevert(XGuardHook.ReferenceLiquidityRequired.selector);
+        hook.setReferenceLiquidity(key, 0);
+    }
+
+    function testSetReferenceLiquidityRejectsExternalHookKey() public {
+        PoolKey memory foreignKey = PoolKey({
+            currency0: Currency.wrap(address(0x5000)),
+            currency1: Currency.wrap(address(0x6000)),
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: 60,
+            hooks: IHooks(address(0xBEEF))
+        });
+
+        vm.expectRevert(XGuardHook.PoolMustUseThisHook.selector);
+        hook.setReferenceLiquidity(foreignKey, 1_000_000 ether);
+    }
+
+    function testSetReferenceLiquidityRequiresOwner() public {
+        address stranger = address(0xDEAD);
+
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", stranger));
+        hook.setReferenceLiquidity(key, 500_000 ether);
+    }
+
+    function testConsecutiveChainDropsAfterScoreFullyDecays() public {
+        _beforeSwap(60_000 ether, true);
+        _beforeSwap(60_000 ether, true);
+
+        vm.roll(block.number + 100);
+        _beforeSwap(60_000 ether, true);
+
+        // 分数归零后链条断开，这一笔只该 +45；不修的话旧计数撑到阈值会变成 85
+        (XGuardHook.RiskState state, uint256 score,,) = hook.getPoolRisk(poolId);
+        assertEq(score, 45, "stale consecutive chain survived full decay");
+        assertEq(uint8(state), uint8(XGuardHook.RiskState.Warning));
+    }
+
+    function testPreviewRiskDropsStaleChainAfterDecay() public {
+        _beforeSwap(60_000 ether, true);
+        _beforeSwap(60_000 ether, true);
+
+        vm.roll(block.number + 100);
+
+        (uint256 predictedScore, uint24 predictedFee,) = hook.previewRisk(poolId, true, 60_000 ether);
+        assertEq(predictedScore, 45, "preview still awarded the stale consecutive bonus");
+        assertEq(predictedFee, 10_000);
+    }
+
     function _beforeSwap(uint256 amountIn, bool zeroForOne) private returns (bytes4, uint24) {
         SwapParams memory params = SwapParams({
             zeroForOne: zeroForOne,

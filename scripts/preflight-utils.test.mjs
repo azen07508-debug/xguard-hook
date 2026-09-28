@@ -5,6 +5,7 @@ import {
   isEnabled,
   parseRpcChainId,
   privateKeyStatus,
+  resolveFromRoot,
   validateDeploymentShape,
   xLayerPoolManager,
   xLayerStateView,
@@ -49,4 +50,9 @@ test('validateDeploymentShape accepts a complete X Layer deployment shape', () =
   });
 
   assert.deepEqual(missing, []);
+});
+
+test('resolveFromRoot keeps absolute paths and joins relative ones', () => {
+  assert.equal(resolveFromRoot('/repo', '/tmp/deploy.json'), '/tmp/deploy.json');
+  assert.equal(resolveFromRoot('/repo', 'deployments/x.json'), '/repo/deployments/x.json');
 });
