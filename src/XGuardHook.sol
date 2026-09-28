@@ -173,9 +173,12 @@ contract XGuardHook is BaseHook, Ownable {
         predictedScore = _decayedScore(risk, config);
         willBlock = impactBps >= config.hardBlockBps;
         if (!willBlock && impactBps >= config.largeSwapBps) {
+            // 必须在加分之前判断：_applySwapRisk 在分数衰减到 0 时会重置计数，
+            // 预览不跟着重置就会和真实结果对不上。
+            bool chainIntact = predictedScore != 0;
             predictedScore = _min(predictedScore + LARGE_SWAP_SCORE, MAX_RISK_SCORE);
             bool sameDirection = risk.lastDirection == zeroForOne;
-            if (sameDirection && risk.consecutiveLargeSwaps + 1 >= config.consecutiveSwapThreshold) {
+            if (chainIntact && sameDirection && risk.consecutiveLargeSwaps + 1 >= config.consecutiveSwapThreshold) {
                 predictedScore = _min(predictedScore + CONSECUTIVE_LARGE_SWAP_SCORE, MAX_RISK_SCORE);
             }
         }
@@ -223,6 +226,10 @@ contract XGuardHook is BaseHook, Ownable {
 
         bool isLarge = impactBps >= config.largeSwapBps;
         bool sameDirection = risk.lastDirection == params.zeroForOne;
+
+        // _decay() 已经跑过：分数归零说明风险已经恢复，之前那串同向大额 swap
+        // 不再算「连续」，否则隔很久的两笔大额也能凑够阈值。
+        if (risk.score == 0) risk.consecutiveLargeSwaps = 0;
 
         uint256 addedScore;
         if (isLarge) {

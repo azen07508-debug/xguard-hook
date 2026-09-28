@@ -199,6 +199,30 @@ contract XGuardHookTest is Test {
         assertEq(warningFee, 20_000 | LPFeeLibrary.OVERRIDE_FEE_FLAG);
     }
 
+    function testConsecutiveChainDropsAfterScoreFullyDecays() public {
+        _beforeSwap(60_000 ether, true);
+        _beforeSwap(60_000 ether, true);
+
+        vm.roll(block.number + 100);
+        _beforeSwap(60_000 ether, true);
+
+        // 分数归零后链条断开，这一笔只该 +45；不修的话旧计数撑到阈值会变成 85
+        (XGuardHook.RiskState state, uint256 score,,) = hook.getPoolRisk(poolId);
+        assertEq(score, 45, "stale consecutive chain survived full decay");
+        assertEq(uint8(state), uint8(XGuardHook.RiskState.Warning));
+    }
+
+    function testPreviewRiskDropsStaleChainAfterDecay() public {
+        _beforeSwap(60_000 ether, true);
+        _beforeSwap(60_000 ether, true);
+
+        vm.roll(block.number + 100);
+
+        (uint256 predictedScore, uint24 predictedFee,) = hook.previewRisk(poolId, true, 60_000 ether);
+        assertEq(predictedScore, 45, "preview still awarded the stale consecutive bonus");
+        assertEq(predictedFee, 10_000);
+    }
+
     function _beforeSwap(uint256 amountIn, bool zeroForOne) private returns (bytes4, uint24) {
         SwapParams memory params = SwapParams({
             zeroForOne: zeroForOne,
