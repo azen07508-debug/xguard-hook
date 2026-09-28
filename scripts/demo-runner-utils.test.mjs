@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { keccak256, stringToHex } from 'viem';
 import {
   demoStepNames,
   hasXGuardSwapBlockedReason,
@@ -11,10 +12,25 @@ test('demoStepNames describes the expected judge demo flow', () => {
   assert.deepEqual(demoStepNames, ['faucet', 'approve', 'normalSwap', 'largeSwap', 'stressTest', 'blockedSwap']);
 });
 
+test('xguardSwapBlockedSelector matches the Solidity error signature', () => {
+  const derived = keccak256(stringToHex('XGuardSwapBlocked(bytes32,uint256,uint256)')).slice(0, 10);
+  assert.equal(xguardSwapBlockedSelector, derived);
+  assert.equal(xguardSwapBlockedSelector, '0x224d9f7a');
+});
+
 test('hasXGuardSwapBlockedReason detects named and selector-based errors', () => {
   assert.equal(hasXGuardSwapBlockedReason(new Error('execution reverted: XGuardSwapBlocked')), true);
-  assert.equal(hasXGuardSwapBlockedReason({ data: `0x000000${xguardSwapBlockedSelector.slice(2)}abcdef` }), true);
+  assert.equal(hasXGuardSwapBlockedReason({ data: '0x000000224d9f7aabcdef' }), true);
   assert.equal(hasXGuardSwapBlockedReason({ nested: { reason: 'ordinary revert' } }), false);
+});
+
+test('hasXGuardSwapBlockedReason walks Error.cause, which Object.values cannot see', () => {
+  const wrapped = new Error('failed to execute', {
+    cause: new Error('execution reverted: XGuardSwapBlocked'),
+  });
+  assert.equal(Object.values(wrapped).includes(wrapped.cause), false, 'cause should be non-enumerable');
+  assert.equal(hasXGuardSwapBlockedReason(wrapped), true);
+  assert.equal(hasXGuardSwapBlockedReason(new Error('boom', { cause: new Error('ordinary revert') })), false);
 });
 
 test('makeDemoResult records account, deployment, steps, and generated timestamp', () => {

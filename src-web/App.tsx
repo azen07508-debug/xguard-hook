@@ -56,6 +56,9 @@ type RiskPoint = {
 /** 曲线最多保留的点数 */
 const RISK_HISTORY_LIMIT = 40;
 
+/** 首次加载回溯的区块数：fromBlock: 0 会被多数 RPC 的单次日志范围限制拒绝 */
+const RISK_HISTORY_LOOKBACK_BLOCKS = 20_000;
+
 const riskLabels = ['Normal', 'Warning', 'Protected'];
 const riskTones = ['normal', 'warning', 'protected'] as const;
 
@@ -70,6 +73,9 @@ const zoneDescriptions: Record<string, string> = {
   protected: '高风险 · 高费率或拦截',
 };
 const xguardSwapBlockedSelector = '224d9f7a';
+
+/** 本地事件 id 序列号：Date.now() 在同毫秒内会重复，React key 需要全局唯一 */
+let localEventSequence = 0;
 const normalSwapAmount = parseUnits('10', 18);
 const largeSwapAmount = parseUnits('60000', 18);
 const stressSwapAmount = largeSwapAmount * 3n;
@@ -103,7 +109,7 @@ function HookFlow({
   active: boolean;
 }) {
   const nodes: { label: string; value: string; sub: string; hot?: boolean }[] = [
-    { label: 'Trader', value: 'swap XGM → gUSD', sub: '发起交易' },
+    { label: 'Trader', value: 'swap gUSD → XGM', sub: '发起交易' },
     { label: 'Router', value: 'XGuardDemoRouter', sub: '路由到目标池' },
     { label: 'Pool Manager', value: 'Uniswap v4', sub: '触发 beforeSwap' },
     { label: 'XGuard Hook', value: state, sub: `score ${score} · fee ${fee}`, hot: true },
@@ -151,7 +157,7 @@ function RiskCurve({
   const W = 560;
   const H = 72;
   const PAD_Y = 11;
-  const MAX = 120;
+  const MAX = 200;
 
   const hasHistory = points.length >= 2;
   const series = hasHistory ? points.map((p) => p.score) : [currentScore, currentScore];
@@ -189,10 +195,10 @@ function RiskCurve({
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
         </defs>
-        {[0, 60, 120].map((v) => (
+        {[0, 100, 200].map((v) => (
           <line key={v} x1="0" y1={y(v)} x2={W} y2={y(v)} className="curve-grid" />
         ))}
-        {[120, 60, 0].map((v) => (
+        {[200, 100, 0].map((v) => (
           <text key={`t-${v}`} x={W - 2} y={y(v) - 5} textAnchor="end" className="curve-tick">
             {v}
           </text>
@@ -210,7 +216,45 @@ function RiskCurve({
   );
 }
 
-async function loadDeployment() {
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+const REQUIRED_ADDRESS_FIELDS = [
+  'poolManager',
+  'stateView',
+  'xguardHook',
+  'demoRouter',
+  'xgm',
+  'gUsd',
+  'currency0',
+  'currency1',
+] as const;
+
+/**
+ * 校验部署 JSON 的形状。example.json 是全 0 占位文件，直接返回它会让页面
+ * 看起来一切正常，但 isReadyDeployment 为 false 导致所有 query 被禁用、
+ * 按钮全部点不动且没有任何提示——所以占位地址同样算无效。
+ */
+function validateDeployment(value: Partial<Deployment> | null | undefined): string[] {
+  if (!value || typeof value !== 'object') return ['not a JSON object'];
+
+  const problems: string[] = [];
+  for (const field of REQUIRED_ADDRESS_FIELDS) {
+    const address = value[field];
+    if (typeof address !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
+      problems.push(`${field} is not an address`);
+    } else if (address.toLowerCase() === ZERO_ADDRESS) {
+      problems.push(`${field} is a placeholder`);
+    }
+  }
+  if (typeof value.poolId !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(value.poolId)) {
+    problems.push('poolId is not a bytes32');
+  }
+  if (value.chainId !== xLayer.id) problems.push(`chainId is ${String(value.chainId)}`);
+
+  return problems;
+}
+
+async function loadDeployment(): Promise<Deployment> {
   // BASE_URL 在 base: './' 下是 './'，在根路径部署下是 '/'。
   // 用它拼部署 JSON 的路径，子路径部署（GitHub Pages）才取得到文件。
   const base = import.meta.env.BASE_URL || '/';
@@ -221,16 +265,27 @@ async function loadDeployment() {
     `${base}deployments/xlayer-mainnet.example.json`,
   ].filter((value): value is string => Boolean(value));
 
+  const attempts: string[] = [];
   for (const path of candidates) {
     try {
       const response = await fetch(path);
-      if (response.ok) return (await response.json()) as Deployment;
-    } catch {
-      /* 取不到就试下一个候选路径 */
+      if (!response.ok) {
+        attempts.push(`${path} → HTTP ${response.status}`);
+        continue;
+      }
+      const parsed = (await response.json()) as Partial<Deployment>;
+      const problems = validateDeployment(parsed);
+      if (problems.length > 0) {
+        attempts.push(`${path} → ${problems.join(', ')}`);
+        continue;
+      }
+      return parsed as Deployment;
+    } catch (error) {
+      attempts.push(`${path} → ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  throw new Error(`Failed to load deployment JSON (tried: ${candidates.join(', ')})`);
+  throw new Error(`Failed to load deployment JSON. Tried ${attempts.join('; ')}`);
 }
 
 export function App() {
@@ -318,15 +373,21 @@ export function App() {
     let cancelled = false;
 
     publicClient
-      .getContractEvents({
-        address: deployment.xguardHook,
-        abi: xguardHookAbi,
-        eventName: 'RiskUpdated',
-        fromBlock: 0n,
-        toBlock: 'latest',
+      .getBlockNumber()
+      .then((latest) => {
+        if (cancelled) return undefined;
+        // 全量从 0 拉会被多数 RPC 的单次日志区块范围限制拒绝，只取最近一段。
+        const lookback = BigInt(RISK_HISTORY_LOOKBACK_BLOCKS);
+        return publicClient.getContractEvents({
+          address: deployment.xguardHook,
+          abi: xguardHookAbi,
+          eventName: 'RiskUpdated',
+          fromBlock: latest > lookback ? latest - lookback : 0n,
+          toBlock: 'latest',
+        });
       })
       .then((logs) => {
-        if (cancelled || !logs.length) return;
+        if (cancelled || !logs?.length) return;
         const points = logs
           .map((log) => ({
             score: Number((log.args as { score?: bigint }).score ?? 0),
@@ -334,10 +395,11 @@ export function App() {
             block: Number(log.blockNumber ?? 0),
           }))
           .slice(-RISK_HISTORY_LIMIT);
-        setRiskHistory((current) => (current.length ? current : points));
+        // 实时订阅可能先到，不能用「非空就丢弃」，否则历史整段被永久吞掉。
+        setRiskHistory((current) => [...points, ...current].sort((a, b) => a.block - b.block).slice(-RISK_HISTORY_LIMIT));
       })
-      .catch(() => {
-        /* 历史拉取失败不影响实时订阅，静默降级 */
+      .catch((error) => {
+        console.warn('Failed to load RiskUpdated history', error);
       });
 
     return () => {
@@ -501,13 +563,14 @@ export function App() {
   }
 
   async function claimFaucet() {
-    const loaded = await requireReady();
-    if (faucetAlreadyClaimed) {
-      setTxStatus('Demo tokens ready');
-      pushLocalEvent('Faucet', 'Demo tokens are already available for this wallet.', 'normal');
-      return;
-    }
     try {
+      // requireReady() throws on wrong chain; it must stay inside the try or the user gets no feedback.
+      const loaded = await requireReady();
+      if (faucetAlreadyClaimed) {
+        setTxStatus('Demo tokens ready');
+        pushLocalEvent('Faucet', 'Demo tokens are already available for this wallet.', 'normal');
+        return;
+      }
       setTxStatus('Claiming demo tokens...');
       const hash = await writeContractAsync({
         address: loaded.demoRouter,
@@ -517,15 +580,16 @@ export function App() {
       await waitForTransaction(hash);
       setTxStatus('Faucet confirmed');
       pushLocalEvent('Faucet', 'Claimed 500,000 XGM and 500,000 gUSD', 'normal');
-      await refreshReads();
+      // Refresh failures must not fall into the catch: the tx above already confirmed.
+      await refreshReads().catch(() => {});
     } catch (error) {
       reportTransactionError('Faucet failed', error);
     }
   }
 
   async function approveRouter() {
-    const loaded = await requireReady();
     try {
+      const loaded = await requireReady();
       setTxStatus('Approving router...');
       const hash = await writeContractAsync({
         address: loaded.currency0,
@@ -536,15 +600,15 @@ export function App() {
       await waitForTransaction(hash);
       setTxStatus('Approval confirmed');
       pushLocalEvent('Approval', `Approved ${shortAddress(loaded.demoRouter)} for currency0`, 'normal');
-      await refetchAllowance();
+      await refetchAllowance().catch(() => {});
     } catch (error) {
       reportTransactionError('Approval failed', error);
     }
   }
 
   async function swap(amount: bigint, repeat = 1, label = 'Swap') {
-    const loaded = await requireReady();
     try {
+      const loaded = await requireReady();
       for (let index = 0; index < repeat; index += 1) {
         setTxStatus(`${label} ${index + 1}/${repeat}...`);
         const hash = await writeContractAsync({
@@ -557,15 +621,15 @@ export function App() {
       }
       setTxStatus(`${label} confirmed`);
       pushLocalEvent(label, `${repeat} swap transaction(s) confirmed`, repeat > 1 ? 'warning' : 'normal');
-      await refreshReads();
+      await refreshReads().catch(() => {});
     } catch (error) {
       reportTransactionError(`${label} blocked or failed`, error);
     }
   }
 
   async function demoSwap(functionName: 'demoNormalSwap' | 'demoLargeSwap' | 'demoStressSwap', label: string) {
-    const loaded = await requireReady();
     try {
+      const loaded = await requireReady();
       setTxStatus(`${label}...`);
       const hash = await writeContractAsync({
         address: loaded.demoRouter,
@@ -575,21 +639,20 @@ export function App() {
       await waitForTransaction(hash);
       setTxStatus(`${label} confirmed`);
       pushLocalEvent(label, 'Demo router transaction confirmed', functionName === 'demoNormalSwap' ? 'normal' : 'warning');
-      await refreshReads();
+      await refreshReads().catch(() => {});
     } catch (error) {
       reportTransactionError(`${label} blocked or failed`, error);
     }
   }
 
   function pushLocalEvent(title: string, detail: string, tone: EventItem['tone']) {
-    setEvents((current) => [
-      { id: `${Date.now()}-${title}`, title, detail, tone },
-      ...current,
-    ].slice(0, 8));
+    localEventSequence += 1;
+    const id = `${localEventSequence}-${Date.now()}-${title}`;
+    setEvents((current) => [{ id, title, detail, tone }, ...current].slice(0, 8));
   }
 
   async function waitForTransaction(hash: Hex) {
-    if (!publicClient) return;
+    if (!publicClient) throw new Error('No RPC client available to confirm the transaction');
     await publicClient.waitForTransactionReceipt({ hash });
   }
 
@@ -610,6 +673,8 @@ export function App() {
     if (seen.has(value)) return false;
     seen.add(value);
     if (value instanceof Error && hasXGuardSwapBlockedReason(value.message, seen)) return true;
+    // Error.cause is non-enumerable, so the Object.values walk below never reaches it.
+    if (value instanceof Error && hasXGuardSwapBlockedReason(value.cause, seen)) return true;
     return Object.values(value).some((entry) => hasXGuardSwapBlockedReason(entry, seen));
   }
 
@@ -735,22 +800,23 @@ export function App() {
           </div>
 
           <div className="gauge">
-            <div className="gauge-fill" style={{ width: `${Math.min(risk.score, 120)}%` }} />
+            <div className="gauge-fill" style={{ width: `${(Math.min(risk.score, 200) / 200) * 100}%` }} />
             <div
               className={`gauge-marker ${toneClass(risk.tone)}`}
-              /* clamp 保证指针永远落在轨道内：风险分为 0 或 120 时
-                 纯百分比定位会被 overflow:hidden 裁掉，等于没有指针。 */
+              /* clamp 保证指针永远落在轨道内：风险分为 0 或 200 时
+                 纯百分比定位会被 overflow:hidden 裁掉，等于没有指针。
+                 200 是合约侧的 score 上限（XGuardHook 里 _min(..., 200)）。 */
               style={{
-                left: `clamp(1px, ${(Math.min(risk.score, 120) / 120) * 100}%, calc(100% - 3px))`,
+                left: `clamp(1px, ${(Math.min(risk.score, 200) / 200) * 100}%, calc(100% - 3px))`,
               }}
             />
           </div>
           <div className="gauge-scale">
             <span>0</span>
-            <span>30</span>
-            <span>60</span>
-            <span>90</span>
-            <span>120</span>
+            <span>50</span>
+            <span>100</span>
+            <span>150</span>
+            <span>200</span>
           </div>
 
           <RiskCurve

@@ -11,6 +11,8 @@ export function hasXGuardSwapBlockedReason(value, seen = new Set()) {
   if (seen.has(value)) return false;
   seen.add(value);
   if (value instanceof Error && hasXGuardSwapBlockedReason(value.message, seen)) return true;
+  // Error.cause is non-enumerable, so the Object.values walk below never reaches it.
+  if (value instanceof Error && hasXGuardSwapBlockedReason(value.cause, seen)) return true;
   return Object.values(value).some((entry) => hasXGuardSwapBlockedReason(entry, seen));
 }
 

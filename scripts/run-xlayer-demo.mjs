@@ -11,7 +11,7 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { hasXGuardSwapBlockedReason, makeDemoResult } from './demo-runner-utils.mjs';
-import { isEnabled, readEnv, validateDeploymentShape, xLayerChainId } from './preflight-utils.mjs';
+import { isEnabled, readEnv, resolveFromRoot, validateDeploymentShape, xLayerChainId } from './preflight-utils.mjs';
 import { explorerTxUrl } from './deployment-verifier-utils.mjs';
 import { waitForTransactionReceiptRaw } from './tx-utils.mjs';
 
@@ -66,7 +66,7 @@ const erc20Abi = [
 ];
 
 function readDeployment() {
-  const resolved = path.join(root, deploymentPath);
+  const resolved = resolveFromRoot(root, deploymentPath);
   if (!fs.existsSync(resolved)) throw new Error(`${deploymentPath} not found. Run deployment first.`);
   const deployment = JSON.parse(fs.readFileSync(resolved, 'utf8'));
   const missing = validateDeploymentShape(deployment);
@@ -82,9 +82,11 @@ function requirePrivateKey() {
 async function writeAndRecord({ name, walletClient, publicClient, request, steps }) {
   const hash = await walletClient.writeContract(request);
   const receipt = await waitForTransactionReceiptRaw(publicClient, hash);
-  const status = receipt.status === '0x1' ? 'success' : 'reverted';
-  steps.push({ name, hash, status, explorer: explorerTxUrl(hash) });
-  console.log(`${name}: ${status} ${hash}`);
+  // A reverted receipt still resolves, so failing here is what stops the script from
+  // writing a demo-results file full of reverted steps and exiting 0.
+  if (receipt.status !== '0x1') throw new Error(`${name} reverted: ${hash}`);
+  steps.push({ name, hash, status: 'success', explorer: explorerTxUrl(hash) });
+  console.log(`${name}: success ${hash}`);
   return receipt;
 }
 
@@ -160,8 +162,9 @@ async function main() {
   }
 
   const result = makeDemoResult({ chainId, account: account.address, deploymentPath, steps });
-  fs.mkdirSync(path.dirname(path.join(root, resultPath)), { recursive: true });
-  fs.writeFileSync(path.join(root, resultPath), `${JSON.stringify(result, null, 2)}\n`);
+  const resolvedResult = resolveFromRoot(root, resultPath);
+  fs.mkdirSync(path.dirname(resolvedResult), { recursive: true });
+  fs.writeFileSync(resolvedResult, `${JSON.stringify(result, null, 2)}\n`);
   console.log(`wrote ${resultPath}`);
 }
 

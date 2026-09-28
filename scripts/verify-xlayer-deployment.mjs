@@ -1,7 +1,6 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { createPublicClient, defineChain, formatUnits, http } from 'viem';
-import { hasRuntimeCode, isEnabled, readEnv, validateDeploymentShape, xLayerChainId } from './preflight-utils.mjs';
+import { hasRuntimeCode, isEnabled, readEnv, resolveFromRoot, validateDeploymentShape, xLayerChainId } from './preflight-utils.mjs';
 import { explorerAddressUrl, requiredCodeTargets, riskStateName } from './deployment-verifier-utils.mjs';
 
 const root = process.cwd();
@@ -44,7 +43,7 @@ const hookAbi = [
 ];
 
 function readDeployment() {
-  const resolved = path.join(root, deploymentPath);
+  const resolved = resolveFromRoot(root, deploymentPath);
   if (!fs.existsSync(resolved)) {
     throw new Error(`${deploymentPath} not found. Run deployment first.`);
   }
@@ -88,12 +87,20 @@ async function main() {
     }),
   ]);
 
+  // An unregistered pool reads back as all zeros, which would otherwise be reported as OK.
+  const hookProblems = [];
+  if (risk[3] === 0n) hookProblems.push('lastUpdatedBlock is 0 (pool never registered on the hook)');
+  if (risk[2] === 0n) hookProblems.push('currentFee is 0');
+  if (referenceLiquidity === 0n) hookProblems.push('referenceLiquidity is 0');
+
+  const hookOperational = hookProblems.length === 0;
   report(
-    true,
+    hookOperational,
     'Hook risk',
     `${riskStateName(risk[0])}, score ${risk[1].toString()}, fee ${risk[2].toString()}, last block ${risk[3].toString()}`,
   );
-  report(true, 'Reference liquidity', formatUnits(referenceLiquidity, 18));
+  report(referenceLiquidity > 0n, 'Reference liquidity', formatUnits(referenceLiquidity, 18));
+  if (!hookOperational) throw new Error(`Hook is not operational: ${hookProblems.join('; ')}`);
 
   console.log('Explorer links:');
   for (const target of requiredCodeTargets(deployment)) {
