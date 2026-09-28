@@ -19,9 +19,9 @@
     "submission:check:final": "node scripts/submission-check.mjs --require-deployment",
     "submission:ready": "node scripts/submission-check.mjs --require-deployment --require-links",
     "verify": "npm run test:node && npm run sol:compile && npm run web:build",
-    "web:dev": "vite --host 0.0.0.0",
+    "web:dev": "vite",
     "web:build": "tsc -b && vite build",
-    "web:preview": "vite preview --host 0.0.0.0"
+    "web:preview": "vite preview"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.5.0",
