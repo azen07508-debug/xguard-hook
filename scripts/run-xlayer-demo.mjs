@@ -152,7 +152,9 @@ async function main() {
       address: deployment.demoRouter,
       abi: demoRouterAbi,
       functionName: 'swapExactInput',
-      args: [true, parseUnits('90000', 18), 0n],
+      // 200_000 在池子 2_000_000 的真实流动性下是 1000 bps，越过 hardBlockBps=800。
+      // 90_000 只有 450 bps，拦不住，下面的断言会反过来说"模拟意外成功"。
+      args: [true, parseUnits('200000', 18), 0n],
     });
     throw new Error('Blocked swap simulation unexpectedly succeeded');
   } catch (error) {
