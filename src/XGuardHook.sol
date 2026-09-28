@@ -45,13 +45,20 @@ contract XGuardHook is BaseHook, Ownable {
         uint24 protectedFee;
     }
 
+    // previewRisk 和 _applySwapRisk 必须用同一套打分规则，否则「预览」会和真实结果对不上。
+    uint256 private constant LARGE_SWAP_SCORE = 45;
+    uint256 private constant CONSECUTIVE_LARGE_SWAP_SCORE = 40;
+    uint256 private constant MAX_RISK_SCORE = 200;
+
     event RiskUpdated(PoolId indexed poolId, RiskState state, uint256 score);
     event FeeAdjusted(PoolId indexed poolId, uint24 oldFee, uint24 newFee, uint256 score);
     event LargeSwapDetected(PoolId indexed poolId, address indexed sender, uint256 amount, uint256 impactBps);
 
     error XGuardSwapBlocked(bytes32 poolId, uint256 riskScore, uint256 amountIn);
     error PoolMustUseDynamicFee();
+    error PoolMustUseThisHook();
     error ReferenceLiquidityRequired();
+    error InvalidPoolConfig();
 
     mapping(PoolId poolId => PoolRisk risk) private poolRisks;
     mapping(PoolId poolId => PoolConfig config) private poolConfigs;
@@ -92,7 +99,7 @@ contract XGuardHook is BaseHook, Ownable {
     }
 
     function registerPool(PoolKey calldata key, uint128 referenceLiquidity) external onlyOwner {
-        if (key.fee != LPFeeLibrary.DYNAMIC_FEE_FLAG) revert PoolMustUseDynamicFee();
+        _validatePoolKey(key);
         if (referenceLiquidity == 0) revert ReferenceLiquidityRequired();
 
         PoolId poolId = key.toId();
@@ -113,10 +120,24 @@ contract XGuardHook is BaseHook, Ownable {
     }
 
     function setPoolConfig(PoolKey calldata key, PoolConfig calldata config) external onlyOwner {
+        _validatePoolKey(key);
+        // baseFee doubles as the "pool has no config" sentinel in getPoolConfig and _beforeSwap,
+        // so a zero here would silently discard the whole config instead of taking effect.
+        if (config.baseFee == 0) revert InvalidPoolConfig();
+
         PoolId poolId = key.toId();
-        poolConfigs[poolId] = config;
+        // Initialize before writing: _ensurePool seeds defaultConfig on first touch and would
+        // otherwise clobber the config this call just supplied.
         PoolRisk storage risk = _ensurePool(poolId);
+        poolConfigs[poolId] = config;
         risk.currentFee = _feeForScore(config, risk.score);
+    }
+
+    function _validatePoolKey(PoolKey calldata key) private view {
+        if (key.fee != LPFeeLibrary.DYNAMIC_FEE_FLAG) revert PoolMustUseDynamicFee();
+        // A key pointing at a different hook would store risk state under a poolId this hook
+        // never gets called for, leaving the real pool on the _ensurePool fallback liquidity.
+        if (key.hooks != IHooks(address(this))) revert PoolMustUseThisHook();
     }
 
     function getPoolRisk(PoolId poolId)
@@ -152,10 +173,10 @@ contract XGuardHook is BaseHook, Ownable {
         predictedScore = _decayedScore(risk, config);
         willBlock = impactBps >= config.hardBlockBps;
         if (!willBlock && impactBps >= config.largeSwapBps) {
-            predictedScore = _min(predictedScore + 45, 200);
+            predictedScore = _min(predictedScore + LARGE_SWAP_SCORE, MAX_RISK_SCORE);
             bool sameDirection = risk.lastDirection == zeroForOne;
             if (sameDirection && risk.consecutiveLargeSwaps + 1 >= config.consecutiveSwapThreshold) {
-                predictedScore = _min(predictedScore + 40, 200);
+                predictedScore = _min(predictedScore + CONSECUTIVE_LARGE_SWAP_SCORE, MAX_RISK_SCORE);
             }
         }
         predictedFee = _feeForScore(config, predictedScore);
@@ -205,7 +226,7 @@ contract XGuardHook is BaseHook, Ownable {
 
         uint256 addedScore;
         if (isLarge) {
-            addedScore += 45;
+            addedScore += LARGE_SWAP_SCORE;
             emit LargeSwapDetected(poolId, sender, amount, impactBps);
             risk.consecutiveLargeSwaps =
                 sameDirection && risk.consecutiveLargeSwaps < type(uint8).max ? risk.consecutiveLargeSwaps + 1 : 1;
@@ -213,8 +234,10 @@ contract XGuardHook is BaseHook, Ownable {
             risk.consecutiveLargeSwaps = 0;
         }
 
-        if (isLarge && sameDirection && risk.consecutiveLargeSwaps >= config.consecutiveSwapThreshold) addedScore += 40;
-        if (addedScore > 0) risk.score = _min(risk.score + addedScore, 200);
+        if (isLarge && sameDirection && risk.consecutiveLargeSwaps >= config.consecutiveSwapThreshold) {
+            addedScore += CONSECUTIVE_LARGE_SWAP_SCORE;
+        }
+        if (addedScore > 0) risk.score = _min(risk.score + addedScore, MAX_RISK_SCORE);
     }
 
     function _blockSwap(PoolId poolId, uint256 amount, uint256 score) private pure {

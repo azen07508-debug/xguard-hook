@@ -144,6 +144,61 @@ contract XGuardHookTest is Test {
         assertEq(currentFee, 3_000);
     }
 
+    function testSetPoolConfigBeforeFirstTouchIsNotClobbered() public {
+        PoolKey memory freshKey = PoolKey({
+            currency0: Currency.wrap(address(0x3000)),
+            currency1: Currency.wrap(address(0x4000)),
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: 60,
+            hooks: IHooks(address(hook))
+        });
+        PoolId freshId = freshKey.toId();
+
+        XGuardHook.PoolConfig memory custom = hook.defaultConfig();
+        custom.baseFee = 500;
+        custom.warningFee = 20_000;
+        hook.setPoolConfig(freshKey, custom);
+
+        XGuardHook.PoolConfig memory stored = hook.getPoolConfig(freshId);
+        assertEq(stored.baseFee, 500, "custom baseFee was overwritten by defaultConfig");
+        assertEq(stored.warningFee, 20_000, "custom warningFee was overwritten by defaultConfig");
+    }
+
+    function testSetPoolConfigRejectsZeroBaseFee() public {
+        XGuardHook.PoolConfig memory config = hook.defaultConfig();
+        config.baseFee = 0;
+
+        vm.expectRevert(XGuardHook.InvalidPoolConfig.selector);
+        hook.setPoolConfig(key, config);
+    }
+
+    function testRegisterPoolRejectsKeyPointingAtAnotherHook() public {
+        PoolKey memory foreignKey = PoolKey({
+            currency0: Currency.wrap(address(0x5000)),
+            currency1: Currency.wrap(address(0x6000)),
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: 60,
+            hooks: IHooks(address(0xBEEF))
+        });
+
+        vm.expectRevert(XGuardHook.PoolMustUseThisHook.selector);
+        hook.registerPool(foreignKey, 1_000_000 ether);
+    }
+
+    function testSetPoolConfigTakesEffectOnNextSwap() public {
+        XGuardHook.PoolConfig memory config = hook.defaultConfig();
+        config.baseFee = 500;
+        config.warningFee = 20_000;
+        hook.setPoolConfig(key, config);
+
+        (, uint24 fee) = _beforeSwap(1_000 ether, true);
+        assertEq(fee, 500 | LPFeeLibrary.OVERRIDE_FEE_FLAG);
+
+        _beforeSwap(60_000 ether, true);
+        (, uint24 warningFee) = _beforeSwap(1_000 ether, true);
+        assertEq(warningFee, 20_000 | LPFeeLibrary.OVERRIDE_FEE_FLAG);
+    }
+
     function _beforeSwap(uint256 amountIn, bool zeroForOne) private returns (bytes4, uint24) {
         SwapParams memory params = SwapParams({
             zeroForOne: zeroForOne,
