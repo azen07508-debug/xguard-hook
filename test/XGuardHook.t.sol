@@ -199,6 +199,66 @@ contract XGuardHookTest is Test {
         assertEq(warningFee, 20_000 | LPFeeLibrary.OVERRIDE_FEE_FLAG);
     }
 
+    function testSetReferenceLiquidityKeepsConfigAndRiskState() public {
+        XGuardHook.PoolConfig memory config = hook.defaultConfig();
+        config.baseFee = 500;
+        config.warningFee = 20_000;
+        hook.setPoolConfig(key, config);
+        _beforeSwap(60_000 ether, true);
+
+        hook.setReferenceLiquidity(key, 500_000 ether);
+
+        assertEq(hook.getReferenceLiquidity(poolId), 500_000 ether);
+
+        XGuardHook.PoolConfig memory stored = hook.getPoolConfig(poolId);
+        assertEq(stored.baseFee, 500, "reference update reset config to default");
+        assertEq(stored.warningFee, 20_000, "reference update reset config to default");
+
+        (XGuardHook.RiskState state, uint256 score, uint24 currentFee,) = hook.getPoolRisk(poolId);
+        assertEq(uint8(state), uint8(XGuardHook.RiskState.Warning), "reference update cleared risk state");
+        assertEq(score, 45, "reference update cleared risk score");
+        assertEq(currentFee, 20_000, "reference update reset current fee");
+    }
+
+    function testSetReferenceLiquidityTakesEffectOnNextSwap() public {
+        // 1_000_000 基准下 60_000 是 600 bps：够大额，但低于 800 bps 硬阈值
+        // 收紧到 50_000 后同一笔变成 12_000 bps，必须被硬拦
+        hook.setReferenceLiquidity(key, 50_000 ether);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                XGuardHook.XGuardSwapBlocked.selector, PoolId.unwrap(poolId), uint256(0), 60_000 ether
+            )
+        );
+        _beforeSwap(60_000 ether, true);
+    }
+
+    function testSetReferenceLiquidityRejectsZero() public {
+        vm.expectRevert(XGuardHook.ReferenceLiquidityRequired.selector);
+        hook.setReferenceLiquidity(key, 0);
+    }
+
+    function testSetReferenceLiquidityRejectsExternalHookKey() public {
+        PoolKey memory foreignKey = PoolKey({
+            currency0: Currency.wrap(address(0x5000)),
+            currency1: Currency.wrap(address(0x6000)),
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: 60,
+            hooks: IHooks(address(0xBEEF))
+        });
+
+        vm.expectRevert(XGuardHook.PoolMustUseThisHook.selector);
+        hook.setReferenceLiquidity(foreignKey, 1_000_000 ether);
+    }
+
+    function testSetReferenceLiquidityRequiresOwner() public {
+        address stranger = address(0xDEAD);
+
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", stranger));
+        hook.setReferenceLiquidity(key, 500_000 ether);
+    }
+
     function testConsecutiveChainDropsAfterScoreFullyDecays() public {
         _beforeSwap(60_000 ether, true);
         _beforeSwap(60_000 ether, true);

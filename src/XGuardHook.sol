@@ -53,6 +53,7 @@ contract XGuardHook is BaseHook, Ownable {
     event RiskUpdated(PoolId indexed poolId, RiskState state, uint256 score);
     event FeeAdjusted(PoolId indexed poolId, uint24 oldFee, uint24 newFee, uint256 score);
     event LargeSwapDetected(PoolId indexed poolId, address indexed sender, uint256 amount, uint256 impactBps);
+    event ReferenceLiquidityUpdated(PoolId indexed poolId, uint128 referenceLiquidity);
 
     error XGuardSwapBlocked(bytes32 poolId, uint256 riskScore, uint256 amountIn);
     error PoolMustUseDynamicFee();
@@ -117,6 +118,20 @@ contract XGuardHook is BaseHook, Ownable {
         risk.initialized = true;
 
         emit RiskUpdated(poolId, RiskState.Normal, 0);
+    }
+
+    // 调整流动性基准的唯一安全入口。不能复用 registerPool：那个的语义是初始化，
+    // 会把 config 打回 defaultConfig 并把 score/state/连续计数一并清零，
+    // 拿它调基准就等于顺手抹掉 owner 设过的阈值和池子当前的告警。
+    function setReferenceLiquidity(PoolKey calldata key, uint128 referenceLiquidity) external onlyOwner {
+        _validatePoolKey(key);
+        if (referenceLiquidity == 0) revert ReferenceLiquidityRequired();
+
+        PoolId poolId = key.toId();
+        PoolRisk storage risk = _ensurePool(poolId);
+        risk.referenceLiquidity = referenceLiquidity;
+
+        emit ReferenceLiquidityUpdated(poolId, referenceLiquidity);
     }
 
     function setPoolConfig(PoolKey calldata key, PoolConfig calldata config) external onlyOwner {
