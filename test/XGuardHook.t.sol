@@ -19,7 +19,27 @@ contract TestableXGuardHook is XGuardHook {
     function validateHookAddress(BaseHook) internal pure override {}
 }
 
-contract MockPoolManager {}
+// _effectiveLiquidity 走 StateLibrary.getLiquidity → poolManager.extsload 读真实流动性，
+// 所以 Mock 必须实现 extsload，否则所有 swap 都会 revert。
+// 这里忽略 slot 直接返回设定值——实验只关心流动性数值本身，不关心存储布局；
+// 接真实 PoolManager 时读的才是真正的 pools[poolId].liquidity。
+contract MockPoolManager {
+    // 默认值对齐 registerPool 使用的 1_000_000 ether 基准，用来验证在基准值上
+    // 改动前后的打分行为完全等价。
+    uint128 public liveLiquidity = 1_000_000 ether;
+
+    function setLiveLiquidity(uint128 value) external {
+        liveLiquidity = value;
+    }
+
+    function extsload(bytes32) external view returns (bytes32) {
+        return bytes32(uint256(liveLiquidity));
+    }
+
+    function exttload(bytes32) external pure returns (bytes32) {
+        return bytes32(0);
+    }
+}
 
 contract XGuardHookTest is Test {
     using PoolIdLibrary for PoolKey;
@@ -220,11 +240,22 @@ contract XGuardHookTest is Test {
         assertEq(currentFee, 20_000, "reference update reset current fee");
     }
 
-    function testSetReferenceLiquidityTakesEffectOnNextSwap() public {
-        // 1_000_000 基准下 60_000 是 600 bps：够大额，但低于 800 bps 硬阈值
-        // 收紧到 50_000 后同一笔变成 12_000 bps，必须被硬拦
+    // 有实时流动性时 live 优先：手动改的基准不参与打分
+    function testSetReferenceLiquidityDoesNotOverrideLiveLiquidity() public {
         hook.setReferenceLiquidity(key, 50_000 ether);
 
+        // live 是 Mock 默认的 1_000_000，60_000 因此只有 600 bps，低于 800 硬阈值。
+        // 若手动基准反而盖过了 live，这一笔会被硬拦。
+        (, uint24 fee) = _beforeSwap(60_000 ether, true);
+        assertEq(fee, 10_000 | LPFeeLibrary.OVERRIDE_FEE_FLAG, "live liquidity should outrank the manual baseline");
+    }
+
+    // 池子还没有流动性（live=0）时才回落到手动基准
+    function testSetReferenceLiquidityAppliesWhenPoolHasNoLiquidity() public {
+        hook.setReferenceLiquidity(key, 50_000 ether);
+        manager.setLiveLiquidity(0);
+
+        // 50_000 基准下 60_000 是 12_000 bps，远超 800
         vm.expectRevert(
             abi.encodeWithSelector(
                 XGuardHook.XGuardSwapBlocked.selector, PoolId.unwrap(poolId), uint256(0), 60_000 ether

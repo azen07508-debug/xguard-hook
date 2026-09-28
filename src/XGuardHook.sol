@@ -7,6 +7,7 @@ import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
@@ -174,6 +175,18 @@ contract XGuardHook is BaseHook, Ownable {
         return poolRisks[poolId].referenceLiquidity;
     }
 
+    // 冲击计算的分母。优先用链上实时流动性：referenceLiquidity 只是注册时写死的估计，
+    // LP 进出后它就和现实脱节，而且是往危险的那边脱——池子缩水时同一笔交易算出的
+    // impactBps 偏小，本该硬拦的会漏掉，页面上还看不出任何异常。
+    // live 为 0 说明池子还没加流动性（或该 poolId 从未初始化），退回注册基准，
+    // 同时避免除零。
+    function _effectiveLiquidity(PoolId poolId, PoolRisk storage risk) private view returns (uint256) {
+        uint128 live = StateLibrary.getLiquidity(poolManager, poolId);
+        if (live > 0) return live;
+        if (risk.referenceLiquidity > 0) return risk.referenceLiquidity;
+        return 1_000_000 ether;
+    }
+
     function previewRisk(PoolId poolId, bool zeroForOne, uint256 amountIn)
         external
         view
@@ -183,8 +196,7 @@ contract XGuardHook is BaseHook, Ownable {
         PoolConfig memory config = poolConfigs[poolId];
         if (config.baseFee == 0) config = defaultConfig();
 
-        uint128 referenceLiquidity = risk.referenceLiquidity == 0 ? 1_000_000 ether : risk.referenceLiquidity;
-        uint256 impactBps = amountIn * 10_000 / referenceLiquidity;
+        uint256 impactBps = amountIn * 10_000 / _effectiveLiquidity(poolId, risk);
         predictedScore = _decayedScore(risk, config);
         willBlock = impactBps >= config.hardBlockBps;
         if (!willBlock && impactBps >= config.largeSwapBps) {
@@ -236,7 +248,7 @@ contract XGuardHook is BaseHook, Ownable {
         SwapParams calldata params
     ) private {
         uint256 amount = _absoluteAmount(params.amountSpecified);
-        uint256 impactBps = amount * 10_000 / risk.referenceLiquidity;
+        uint256 impactBps = amount * 10_000 / _effectiveLiquidity(poolId, risk);
         if (impactBps >= config.hardBlockBps) _blockSwap(poolId, amount, risk.score);
 
         bool isLarge = impactBps >= config.largeSwapBps;

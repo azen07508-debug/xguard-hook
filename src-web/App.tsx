@@ -77,9 +77,12 @@ const xguardSwapBlockedSelector = '224d9f7a';
 /** 本地事件 id 序列号：Date.now() 在同毫秒内会重复，React key 需要全局唯一 */
 let localEventSequence = 0;
 const normalSwapAmount = parseUnits('10', 18);
-const largeSwapAmount = parseUnits('60000', 18);
+// 与 XGuardDemoRouter.LARGE_SWAP_AMOUNT 保持一致：100_000 在 demo 池 2_000_000 的
+// 真实流动性下是 500 bps，越过 largeSwapBps=300 留一倍余量。
+const largeSwapAmount = parseUnits('100000', 18);
 const stressSwapAmount = largeSwapAmount * 3n;
-const blockedAmount = parseUnits('90000', 18);
+// 与 XGuardDemoFlowTest.HARD_BLOCK_DEMO_AMOUNT 保持一致：200_000 是 1000 bps，越过 800
+const blockedAmount = parseUnits('200000', 18);
 const fullDemoSpendAmount = normalSwapAmount + largeSwapAmount + stressSwapAmount + blockedAmount;
 
 function shortAddress(value?: string) {
@@ -579,7 +582,7 @@ export function App() {
       });
       await waitForTransaction(hash);
       setTxStatus('Faucet confirmed');
-      pushLocalEvent('Faucet', 'Claimed 500,000 XGM and 500,000 gUSD', 'normal');
+      pushLocalEvent('Faucet', 'Claimed 1,000,000 XGM and 1,000,000 gUSD', 'normal');
       // Refresh failures must not fall into the catch: the tx above already confirmed.
       await refreshReads().catch(() => {});
     } catch (error) {

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {Test} from "forge-std/Test.sol";
+import {console} from "forge-std/console.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
@@ -11,6 +12,7 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {DemoToken} from "../src/DemoToken.sol";
 import {XGuardDemoRouter} from "../src/XGuardDemoRouter.sol";
@@ -21,6 +23,11 @@ contract XGuardDemoFlowTest is Test {
 
     uint160 private constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
     uint160 private constant HOOK_FLAGS = uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG);
+    // 硬拦截演示金额。demo 池真实流动性是 2_000_000，200_000 算下来 1000 bps，
+    // 越过 hardBlockBps=800 还有余量（流动性涨到 2_500_000 才失效）。
+    // 原来的 90_000 在真实流动性下只有 450 bps，是静态基准算成 900 才拦得住——
+    // 而那个基准和真实差了一倍，所以拦下来演示的是误拦，不是真拦截。
+    uint256 private constant HARD_BLOCK_DEMO_AMOUNT = 200_000 ether;
 
     address private trader = makeAddr("trader");
 
@@ -100,10 +107,42 @@ contract XGuardDemoFlowTest is Test {
     function testHardThresholdRevertKeepsXGuardReasonInRevertData() public {
         vm.prank(trader);
         (bool success, bytes memory revertData) =
-            address(router).call(abi.encodeCall(router.swapExactInput, (true, 90_000 ether, 0)));
+            address(router).call(abi.encodeCall(router.swapExactInput, (true, HARD_BLOCK_DEMO_AMOUNT, 0)));
 
         assertFalse(success);
         assertTrue(_containsSelector(revertData, XGuardHook.XGuardSwapBlocked.selector));
+    }
+
+    // 方案 B 的量化数据：静态基准 vs 链上真实流动性，以及各阈值的金额临界点
+    function testQuantifyImpactShift() public view {
+        uint256 live = StateLibrary.getLiquidity(manager, poolId);
+        uint256 baseline = 1_000_000 ether;
+
+        console.log("--- liquidity ---");
+        console.log("live     (ether):", live / 1e18);
+        console.log("baseline (ether):", baseline / 1e18);
+        console.log("live/baseline   :", live / baseline);
+
+        XGuardHook.PoolConfig memory cfg = hook.defaultConfig();
+
+        console.log("--- impactBps: old(static 1M) vs new(live) ---");
+        _report("normal 10 ether            ", 10 ether, baseline, live);
+        _report("large  LARGE_SWAP_AMOUNT   ", router.LARGE_SWAP_AMOUNT(), baseline, live);
+        _report("hard   HARD_BLOCK_DEMO_AMOUNT", HARD_BLOCK_DEMO_AMOUNT, baseline, live);
+
+        console.log("--- amounts that reach each threshold ---");
+        console.log("largeSwapBps:", uint256(cfg.largeSwapBps));
+        console.log("   old static baseline ->", uint256(cfg.largeSwapBps) * baseline / 10_000);
+        console.log("   new live liquidity  ->", uint256(cfg.largeSwapBps) * live / 10_000);
+        console.log("hardBlockBps:", uint256(cfg.hardBlockBps));
+        console.log("   old static baseline ->", uint256(cfg.hardBlockBps) * baseline / 10_000);
+        console.log("   new live liquidity  ->", uint256(cfg.hardBlockBps) * live / 10_000);
+    }
+
+    function _report(string memory label, uint256 amount, uint256 baseline, uint256 live) private pure {
+        console.log(label);
+        console.log("   old impactBps:", amount * 10_000 / baseline);
+        console.log("   new impactBps:", amount * 10_000 / live);
     }
 
     function _deployHook() private returns (XGuardHook deployedHook) {

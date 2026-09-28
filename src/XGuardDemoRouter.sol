@@ -18,7 +18,10 @@ contract XGuardDemoRouter is IUnlockCallback, Ownable {
     using BalanceDeltaLibrary for BalanceDelta;
 
     uint256 public constant NORMAL_SWAP_AMOUNT = 10 ether;
-    uint256 public constant LARGE_SWAP_AMOUNT = 60_000 ether;
+    // 100_000 在 demo 池 2_000_000 的真实流动性下是 500 bps，越过 largeSwapBps=300
+    // 仍留一倍余量。60_000 在同样的流动性下只有 300 bps，正好卡在阈值上——
+    // LP 一加钱这个 demo 步骤就失效。
+    uint256 public constant LARGE_SWAP_AMOUNT = 100_000 ether;
 
     enum Action {
         AddLiquidity,
@@ -52,8 +55,10 @@ contract XGuardDemoRouter is IUnlockCallback, Ownable {
     function faucet() external {
         if (faucetClaimed[msg.sender]) revert FaucetAlreadyClaimed();
         faucetClaimed[msg.sender] = true;
-        uint256 amountA = 500_000 ether;
-        uint256 amountB = 500_000 ether;
+        // 1_000_000 才够跑完整 demo：normal 10 + large 100_000 + stress 3×100_000 + 
+        // blocked 200_000 = 610_000，而且 faucet 一个地址只能领一次，不够就没有第二次机会。
+        uint256 amountA = 1_000_000 ether;
+        uint256 amountB = 1_000_000 ether;
         demoTokenA.mint(msg.sender, amountA);
         demoTokenB.mint(msg.sender, amountB);
         emit FaucetClaimed(msg.sender, amountA, amountB);
